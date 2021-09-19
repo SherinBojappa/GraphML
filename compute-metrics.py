@@ -153,6 +153,7 @@ def find_neighbors(current_node):
 
 
 def update_weights(shortest_paths, current_node, curr_neighbor):
+    #new_dist = shortest_paths[current_node] + weight_mat[current_node][curr_neighbor]
     new_dist = shortest_paths[current_node] + weight_mat[current_node][curr_neighbor]
     if new_dist < shortest_paths[curr_neighbor]:
         shortest_paths[curr_neighbor] = new_dist
@@ -162,21 +163,33 @@ def update_weights(shortest_paths, current_node, curr_neighbor):
 
 
 
-def dijkstra(visited_vertices, unvisited_vertices, shortest_paths, previous_vertex):
+def dijkstra(start_vertex, visited_vertices, unvisited_vertices, shortest_paths, previous_vertex):
+    current_node = start_vertex
     while len(unvisited_vertices) != 0:
-        current_node = unvisited_vertices.pop(0)
+
         neighbors = np.array(find_neighbors(current_node))
         dist_neighbors = [shortest_paths[neighbor] for neighbor in neighbors]
         sorted_neighbors = list(neighbors[np.argsort(dist_neighbors)])
+        sorted_neighbors = [neighbor for neighbor in sorted_neighbors
+                            if neighbor not in visited_vertices]
         num_neighbors = len(sorted_neighbors)
-        for _ in range(num_neighbors):
-            curr_neighbor = sorted_neighbors.pop(0)
-            if curr_neighbor not in visited_vertices:
-                shortest_paths, previous_vertex = update_weights(shortest_paths,
+        for idx in range(num_neighbors):
+            curr_neighbor = sorted_neighbors[idx]
+            shortest_paths, previous_vertex = update_weights(shortest_paths,
                                                              current_node,
                                                              curr_neighbor)
 
+        #print(current_node)
         visited_vertices.append(current_node)
+        unvisited_vertices.pop(unvisited_vertices.index(current_node))
+        #print(unvisited_vertices)
+        #print("sorted neighbors")
+        #print(sorted_neighbors)
+        if len(sorted_neighbors)>0:
+            current_node = sorted_neighbors[0]
+        else:
+            if len(unvisited_vertices)>0:
+                current_node = unvisited_vertices[0]
 
     return shortest_paths, previous_vertex
 
@@ -199,13 +212,11 @@ for vertex in range(num_nodes):
     visited_vertices = []
     # initially all vertices are unvisited
     unvisited_vertices = [vertex for vertex in range(num_nodes)]
-    unvisited_vertices.pop(vertex)
-    unvisited_vertices = [vertex] + unvisited_vertices
     # distance of vertex with itself is 0
     #weight_mat[start_vertex][start_vertex] = 0
     # shortest path of the vertex with itself is 0
     shortest_paths[start_vertex] = 0
-    shortest_paths, previous_vertex = dijkstra(visited_vertices, unvisited_vertices, shortest_paths, previous_vertex)
+    shortest_paths, previous_vertex = dijkstra(start_vertex, visited_vertices, unvisited_vertices, shortest_paths, previous_vertex)
     print("source node is " + str(vertex) )
     print(shortest_paths)
     print(previous_vertex)
