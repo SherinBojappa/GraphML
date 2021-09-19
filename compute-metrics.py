@@ -87,7 +87,7 @@ for node_val in adj_mat:
     node_degree.append(val)
 
 max_node_degree = round(max(node_degree), 5)
-output_file.write(str(max_node_degree)+ '\n')
+
 
 
 def dfs(node_idx, visited_nodes, connected_components):
@@ -112,25 +112,11 @@ for node_idx, node in enumerate(adj_mat):
         num_connected_comp += 1
 
 
-output_file.write(str(num_connected_comp)+ '\n')
 
-for comp in connected_components_list:
-    for node_id in comp:
-        output_file.write(str(node_id) + ' ')
-    output_file.write('\n')
 
-print("The number of connected components are " + str(num_connected_comp))
-print("The connected components are " + str(connected_components_list))
 
-"""
-Degree centrality of a node refers to the number of edges attached to the node. 
-In order to know the standardized score, you need to divide each score by n-1 
-(n = the number of nodes). 
-"""
-for node in adj_mat:
-    num_edges = np.count_nonzero(node == 1)
-    node_degree_centrality = round((num_edges/(num_nodes-1)), 5)
-    output_file.write(str(node_degree_centrality) + ' ')
+
+
 
 def find_smallest_dist_vertex(start_vertex, dist_mat, adj_mat):
     smallest_dist = 1000
@@ -179,12 +165,10 @@ def dijkstra(start_vertex, visited_vertices, unvisited_vertices, shortest_paths,
                                                              current_node,
                                                              curr_neighbor)
 
-        #print(current_node)
+
         visited_vertices.append(current_node)
         unvisited_vertices.pop(unvisited_vertices.index(current_node))
-        #print(unvisited_vertices)
-        #print("sorted neighbors")
-        #print(sorted_neighbors)
+
         if len(sorted_neighbors)>0:
             current_node = sorted_neighbors[0]
         else:
@@ -223,6 +207,36 @@ for vertex in range(num_nodes):
     short_paths.append(shortest_paths)
     prev_node.append(previous_vertex)
 
-output_file.close()
+# compute diameter of the graph
+diameter = 0
+for vertex_paths in short_paths:
+    for distance in vertex_paths:
+        if distance > diameter and distance < 1000:
+            diameter = distance
 
+output_file.write(str(diameter) + '\n')
+output_file.write(str(num_connected_comp)+ '\n')
+output_file.write(str(max_node_degree)+ '\n')
+
+"""
+Degree centrality of a node refers to the number of edges attached to the node. 
+In order to know the standardized score, you need to divide each score by n-1 
+(n = the number of nodes). 
+"""
+for node_idx, node in enumerate(adj_mat):
+    num_edges = np.count_nonzero(node == 1)
+    node_degree_centrality = round((num_edges/(num_nodes-1)), 5)
+    output_file.write(str(node_degree_centrality) + ' ')
+    node_closeness_centrality = round(((num_nodes-1)/sum(short_paths[node_idx])), 5)
+    output_file.write(str(node_closeness_centrality) + '\n')
+
+for comp in connected_components_list:
+    for node_id in comp:
+        output_file.write(str(node_id) + ' ')
+    output_file.write('\n')
+
+print("The number of connected components are " + str(num_connected_comp))
+print("The connected components are " + str(connected_components_list))
+
+output_file.close()
 
