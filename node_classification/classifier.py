@@ -1,8 +1,14 @@
 import argparse
 import networkx as nx
 import pandas as pd
+import tensorflow as tf
+from tensorflow import keras
+from tensorflow.keras import layers
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.optimizers import Adam
 import matplotlib.pyplot as plt
 import scipy
+import numpy as np
 
 
 def plot_graph(G):
@@ -106,19 +112,87 @@ def main(args):
 
     # concatenate features for train data
     training_nodes = train_data["node"].to_list()
-
     node_vectors = [node_to_vec[node] for node in training_nodes]
-    train_data["node_feature_vectors"] = node_vectors
+    train_feature_vectors = np.array(node_vectors)
 
     val_nodes = val_data["node"].to_list()
     node_vectors = [node_to_vec[node] for node in val_nodes]
-    val_data["node_feature_vectors"] = node_vectors
+    val_feature_vectors = np.array(node_vectors)
 
     test_nodes = test_data["node"].to_list()
     node_vectors = [node_to_vec[node] for node in test_nodes]
-    test_data["node_feature_vectors"] = node_vectors
+    test_feature_vectors = np.array(node_vectors)
 
 
+    if args.model == "MLP":
+        hidden_units = 32
+        dropout_rate = 0.2
+        lr = 0.001
+        num_epochs = 300
+        batch_size = 256
+        feature_dim = len(node_to_vec[0])
+        num_classes = len(class_labels["class_label_id"].to_list())
+        input_features = keras.Input(shape=(feature_dim, ))
+        mlp = Sequential()
+        mlp.add(keras.layers.Dense(hidden_units, activation='gelu'))
+        mlp.add(keras.layers.BatchNormalization())
+        mlp.add(keras.layers.Dropout(dropout_rate))
+        mlp.add(keras.layers.Dense(hidden_units, activation='gelu'))
+        mlp.add(keras.layers.Dense(hidden_units, activation='gelu'))
+        mlp.add(keras.layers.BatchNormalization())
+        mlp.add(keras.layers.Dropout(dropout_rate))
+        mlp.add(keras.layers.Dense(hidden_units, activation='gelu'))
+        mlp.add(keras.layers.Dense(hidden_units, activation='gelu'))
+        mlp.add(keras.layers.BatchNormalization())
+        mlp.add(keras.layers.Dropout(dropout_rate))
+        mlp.add(keras.layers.Dense(hidden_units, activation='gelu'))
+        mlp.add(keras.layers.Dense(hidden_units, activation='gelu'))
+        mlp.add(keras.layers.BatchNormalization())
+        mlp.add(keras.layers.Dropout(dropout_rate))
+        mlp.add(keras.layers.Dense(hidden_units, activation='gelu'))
+        mlp.add(keras.layers.Dense(hidden_units, activation='gelu'))
+        mlp.add(keras.layers.BatchNormalization())
+        mlp.add(keras.layers.Dropout(dropout_rate))
+        mlp.add(keras.layers.Dense(hidden_units, activation='gelu'))
+        # softmax
+        mlp.add(keras.layers.Dense(num_classes, name='logits'))
+        logits = mlp(input_features)
+
+        model = keras.Model(input_features, logits)
+
+        model.summary()
+
+        model.compile(
+            optimizer=Adam(lr),
+            loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+            metrics=[keras.metrics.SparseCategoricalAccuracy(name="acc")]
+            )
+
+        # Create an early stopping callback.
+        early_stopping = keras.callbacks.EarlyStopping(
+            monitor="val_acc", patience=30, restore_best_weights=True
+        )
+
+        x_train = train_feature_vectors
+        y_train = train_data["class_label"].to_numpy()
+
+
+        # Fit the model.
+        history = model.fit(
+            x=x_train,
+            y=y_train,
+            epochs=num_epochs,
+            batch_size=batch_size,
+            #validation_data=(val_feature_vectors,
+            #                 val_data["class_label"].to_numpy()),
+            validation_split=0.2,
+            callbacks=[early_stopping],
+        )
+
+        #logits = baseline_model.predict(new_instances)
+        #probabilities = keras.activations.softmax(
+        #    tf.convert_to_tensor(logits)).numpy()
+        #display_class_probabilities(probabilities)
 
     print("End point")
 
@@ -137,6 +211,7 @@ if __name__ == '__main__':
     parser.add_argument("train", help="training nodes with category")
     parser.add_argument("val", help="validation nodes with category")
     parser.add_argument("test", help="test nodes")
+    parser.add_argument("model", default="GNN", help="MLP or GNN")
     args = parser.parse_args()
 
     main(args)
