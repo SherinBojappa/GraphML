@@ -100,13 +100,28 @@ def main(args):
             #    exit()
             node_feature_vector[title_unique.index(word)] = 1
 
-        node_to_vec[line[0]] = node_feature_vector
+        node_to_vec[int(line[0])] = node_feature_vector
 
     print("Done with extracting features for all nodes")
 
     # concatenate features for train data
+    training_nodes = train_data["node"].to_list()
 
-    # concatenate features for val data
+    node_vectors = [node_to_vec[node] for node in training_nodes]
+    train_data["node_feature_vectors"] = node_vectors
+
+    val_nodes = val_data["node"].to_list()
+    node_vectors = [node_to_vec[node] for node in val_nodes]
+    val_data["node_feature_vectors"] = node_vectors
+
+    test_nodes = test_data["node"].to_list()
+    node_vectors = [node_to_vec[node] for node in test_nodes]
+    test_data["node_feature_vectors"] = node_vectors
+
+
+
+    print("End point")
+
 
 
 
