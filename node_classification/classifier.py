@@ -127,36 +127,50 @@ def main(args):
     if args.model == "MLP":
         hidden_units = 32
         dropout_rate = 0.2
-        lr = 0.001
+        lr = 0.01
         num_epochs = 300
-        batch_size = 256
+        batch_size = 32
         feature_dim = len(node_to_vec[0])
         num_classes = len(class_labels["class_label_id"].to_list())
         input_features = keras.Input(shape=(feature_dim, ))
+
+        x = keras.layers.Dense(hidden_units, activation='gelu')(input_features)
+        x = keras.layers.BatchNormalization()(x)
+        x1 = keras.layers.Dropout(dropout_rate)(x)
+        x = keras.layers.Add()([x, x1])
+        x = keras.layers.Dense(hidden_units, activation='gelu')(input_features)
+        x = keras.layers.BatchNormalization()(x)
+        x1 = keras.layers.Dropout(dropout_rate)(x)
+        x = keras.layers.Add()([x, x1])
+        x = keras.layers.Dense(hidden_units, activation='gelu')(input_features)
+        x = keras.layers.BatchNormalization()(x)
+        x1 = keras.layers.Dropout(dropout_rate)(x)
+        x = keras.layers.Add()([x, x1])
+        logits = keras.layers.Dense(num_classes, name='logits')(x)
+
+        """
         mlp = Sequential()
         mlp.add(keras.layers.Dense(hidden_units, activation='gelu'))
         mlp.add(keras.layers.BatchNormalization())
         mlp.add(keras.layers.Dropout(dropout_rate))
         mlp.add(keras.layers.Dense(hidden_units, activation='gelu'))
+        mlp.add(keras.layers.BatchNormalization())
+        mlp.add(keras.layers.Dropout(dropout_rate))
         mlp.add(keras.layers.Dense(hidden_units, activation='gelu'))
         mlp.add(keras.layers.BatchNormalization())
         mlp.add(keras.layers.Dropout(dropout_rate))
         mlp.add(keras.layers.Dense(hidden_units, activation='gelu'))
-        mlp.add(keras.layers.Dense(hidden_units, activation='gelu'))
         mlp.add(keras.layers.BatchNormalization())
         mlp.add(keras.layers.Dropout(dropout_rate))
-        mlp.add(keras.layers.Dense(hidden_units, activation='gelu'))
-        mlp.add(keras.layers.Dense(hidden_units, activation='gelu'))
-        mlp.add(keras.layers.BatchNormalization())
-        mlp.add(keras.layers.Dropout(dropout_rate))
-        mlp.add(keras.layers.Dense(hidden_units, activation='gelu'))
         mlp.add(keras.layers.Dense(hidden_units, activation='gelu'))
         mlp.add(keras.layers.BatchNormalization())
         mlp.add(keras.layers.Dropout(dropout_rate))
         mlp.add(keras.layers.Dense(hidden_units, activation='gelu'))
         # softmax
         mlp.add(keras.layers.Dense(num_classes, name='logits'))
+        
         logits = mlp(input_features)
+        """
 
         model = keras.Model(input_features, logits)
 
@@ -170,7 +184,7 @@ def main(args):
 
         # Create an early stopping callback.
         early_stopping = keras.callbacks.EarlyStopping(
-            monitor="val_acc", patience=30, restore_best_weights=True
+            monitor="val_acc", patience=100, restore_best_weights=True
         )
 
         x_train = train_feature_vectors
@@ -183,9 +197,9 @@ def main(args):
             y=y_train,
             epochs=num_epochs,
             batch_size=batch_size,
-            #validation_data=(val_feature_vectors,
-            #                 val_data["class_label"].to_numpy()),
-            validation_split=0.2,
+            validation_data=(val_feature_vectors,
+                             val_data["class_label"].to_numpy()),
+            #validation_split=0.2,
             callbacks=[early_stopping],
         )
 
