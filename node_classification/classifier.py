@@ -27,6 +27,7 @@ def run_experiment(model, x_train, y_train, x_val, y_val, class_weight):
     # Compile the model.
     model.compile(
         optimizer=keras.optimizers.Adam(args.learning_rate),
+        #optimizer=keras.optimizers.SGD(args.learning_rate),
         loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
         metrics=[keras.metrics.SparseCategoricalAccuracy(name="acc")],
     )
@@ -39,11 +40,11 @@ def run_experiment(model, x_train, y_train, x_val, y_val, class_weight):
     history = model.fit(
         x=x_train,
         y=y_train,
-        class_weight = class_weight,
+        #class_weight = class_weight,
         epochs=args.num_epochs,
         batch_size=args.batch_size,
         validation_data=(x_val, y_val),
-        #validation_split=0.15,
+        #validation_split=0.3,
         callbacks=[early_stopping],
     )
     return history
@@ -207,6 +208,7 @@ class GNNNodeClassifier(tf.keras.Model):
         self.postprocess = create_ffn(hidden_units, dropout_rate, name="postprocess")
         # Create a compute logits layer.
         self.compute_logits = layers.Dense(units=num_classes, name="logits")
+        self.hidden_units = hidden_units
 
     def call(self, input_node_indices):
         # Preprocess the node_features to produce node representations.
@@ -229,7 +231,7 @@ class GNNNodeClassifier(tf.keras.Model):
         print("before squeeze")
         print(dd.shape)
         # node_embeddings = tf.squeeze(dd)
-        node_embeddings = tf.reshape(dd, [-1, 32])
+        node_embeddings = tf.reshape(dd, [-1, self.hidden_units[-1]])
         print("after squeeze")
         print(node_embeddings.shape)
         # Compute logits
