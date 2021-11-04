@@ -210,29 +210,33 @@ class GNNNodeClassifier(tf.keras.Model):
 
     def call(self, input_node_indices):
         # Preprocess the node_features to produce node representations.
-
         x = self.preprocess(self.node_features)
-        #print(x.shape)
         # Apply the first graph conv layer.
         x1 = self.conv1((x, self.edges, self.edge_weights))
         # Skip connection.
         x = x1 + x
-        #print(x.shape)
         # Apply the second graph conv layer.
         x2 = self.conv2((x, self.edges, self.edge_weights))
         # Skip connection.
         x = x2 + x
-        #print(x.shape)
         # Postprocess node embedding.
         x = self.postprocess(x)
-        #print(x.shape)
+
+        print("before gather")
+        print(x.shape)
         # Fetch node embeddings for the input node_indices.
-        #node_embeddings = tf.squeeze(tf.gather(x, input_node_indices))
-        node_embeddings = tf.gather(x, input_node_indices)
-        #print(input_node_indices.shape)
-        #print(node_embeddings.shape)
+        dd = tf.gather(x, input_node_indices)
+        print("before squeeze")
+        print(dd.shape)
+        # node_embeddings = tf.squeeze(dd)
+        node_embeddings = tf.reshape(dd, [-1, 32])
+        print("after squeeze")
+        print(node_embeddings.shape)
         # Compute logits
-        return self.compute_logits(node_embeddings)
+        logits = self.compute_logits(node_embeddings)
+        print("logits shape:")
+        print(logits.shape)
+        return logits
 
 
 def extract_features():
@@ -343,8 +347,9 @@ def main(args):
 
     x_train = train_feature_vectors
     y_train = train_data["class_label"].to_numpy()
-
     (unique, counts) = np.unique(y_train, return_counts=True)
+    """
+    
     class_weights = (1.0 / counts)
     class_weights = class_weights / np.min(class_weights)
     class_weight = {}
@@ -352,8 +357,9 @@ def main(args):
         if idx in unique:
             class_weight[idx] = class_weights[list(unique).index(idx)]
         else:
-            class_weight[idx] = 0.0
+            class_weight[idx] = 100.0
     #class_weight = {key: value for (key, value) in zip(unique, class_weights)}
+    """
 
     import sklearn
     weights = sklearn.utils.class_weight.compute_class_weight('balanced',
@@ -366,7 +372,7 @@ def main(args):
         if idx in unique:
             class_weight[idx] = weights[list(unique).index(idx)]
         else:
-            class_weight[idx] = 0.0
+            class_weight[idx] = np.max(weights)+1.0
 
     x_val = val_feature_vectors
     y_val = val_data["class_label"].to_numpy()
@@ -377,7 +383,7 @@ def main(args):
         hidden_units = 32
         dropout_rate = args.dropout_rate
         lr = args.learning_rate
-        num_epochs = args.epochs
+        num_epochs = args.num_epochs
         batch_size = args.batch_size
 
         input_features = keras.Input(shape=(feature_dim, ))
@@ -446,6 +452,16 @@ def main(args):
             #validation_split=0.2,
             callbacks=[early_stopping],
         )
+
+        #logits = model.predict(tf.convert_to_tensor(test_nodes))
+        logits = model.predict(x_test)
+        probabilities = keras.activations.softmax(tf.convert_to_tensor(logits)).numpy().squeeze()
+        preds = np.argmax(probabilities, axis=1)
+        print(preds[0])
+
+        output_file = open("predictions.txt", "w")
+        for iter, node in enumerate(test_nodes):
+            output_file.write(str(node) + ' ' + str(preds[iter])+"\n")
 
         #logits = baseline_model.predict(new_instances)
         #probabilities = keras.activations.softmax(
