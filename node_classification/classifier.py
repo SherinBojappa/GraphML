@@ -23,7 +23,7 @@ def extract_graph_features(G, node_to_vec):
 
     return graph_info
 
-def run_experiment(model, x_train, y_train, x_val, y_val):
+def run_experiment(model, x_train, y_train, x_val, y_val, class_weight):
     # Compile the model.
     model.compile(
         optimizer=keras.optimizers.Adam(args.learning_rate),
@@ -34,10 +34,12 @@ def run_experiment(model, x_train, y_train, x_val, y_val):
     early_stopping = keras.callbacks.EarlyStopping(
         monitor="val_acc", patience=50, restore_best_weights=True
     )
+
     # Fit the model.
     history = model.fit(
         x=x_train,
         y=y_train,
+        class_weight = class_weight,
         epochs=args.num_epochs,
         batch_size=args.batch_size,
         validation_data=(x_val, y_val),
@@ -205,6 +207,7 @@ class GNNNodeClassifier(tf.keras.Model):
         self.postprocess = create_ffn(hidden_units, dropout_rate, name="postprocess")
         # Create a compute logits layer.
         self.compute_logits = layers.Dense(units=num_classes, name="logits")
+
     def call(self, input_node_indices):
         # Preprocess the node_features to produce node representations.
 
@@ -340,6 +343,31 @@ def main(args):
 
     x_train = train_feature_vectors
     y_train = train_data["class_label"].to_numpy()
+
+    (unique, counts) = np.unique(y_train, return_counts=True)
+    class_weights = (1.0 / counts)
+    class_weights = class_weights / np.min(class_weights)
+    class_weight = {}
+    for idx in range(num_classes):
+        if idx in unique:
+            class_weight[idx] = class_weights[list(unique).index(idx)]
+        else:
+            class_weight[idx] = 0.0
+    #class_weight = {key: value for (key, value) in zip(unique, class_weights)}
+
+    import sklearn
+    weights = sklearn.utils.class_weight.compute_class_weight('balanced',
+                                                              unique,
+                                                              y_train)
+    print(weights)
+
+    class_weight = {}
+    for idx in range(num_classes):
+        if idx in unique:
+            class_weight[idx] = weights[list(unique).index(idx)]
+        else:
+            class_weight[idx] = 0.0
+
     x_val = val_feature_vectors
     y_val = val_data["class_label"].to_numpy()
 
@@ -444,7 +472,7 @@ def main(args):
 
         history = run_experiment(gnn_model,
                                  np.array(training_nodes), y_train,
-                                 np.array(val_nodes), y_val)
+                                 np.array(val_nodes), y_val, class_weight)
 
         logits = gnn_model.predict(tf.convert_to_tensor(test_nodes))
         probabilities = keras.activations.softmax(tf.convert_to_tensor(logits)).numpy().squeeze()
@@ -454,16 +482,6 @@ def main(args):
         output_file = open("predictions.txt", "w")
         for iter, node in enumerate(test_nodes):
             output_file.write(str(node) + ' ' + str(preds[iter])+"\n")
-
-
-
-
-
-
-
-
-
-
 
 
 if __name__ == '__main__':
@@ -476,9 +494,9 @@ if __name__ == '__main__':
     parser.add_argument("test", help="test nodes")
     parser.add_argument("model", default="GNN", help="MLP or GNN")
     parser.add_argument("num_epochs", default=300, type=int, help="number of epochs")
-    parser.add_argument("batch_size", default=32, type=int, help="samples in a batch")
+    parser.add_argument("batch_size", default=256, type=int, help="samples in a batch")
     parser.add_argument("learning_rate", default=0.01, type=float, help="learning rate")
-    parser.add_argument("dropout_rate", default=0.2, type=float, help="dropout_rate")
+    parser.add_argument("dropout_rate", default=0.5, type=float, help="dropout_rate")
 
     args = parser.parse_args()
 
