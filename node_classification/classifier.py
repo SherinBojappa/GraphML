@@ -30,7 +30,7 @@ def run_experiment(model, x_train, y_train, x_val, y_val, class_weight):
         if epoch < 10:
             return lr
         else:
-            return lr * tf.math.exp(-0.1)
+            return lr * 0.9
 
     model.compile(
         optimizer=keras.optimizers.Adam(args.learning_rate),
@@ -525,11 +525,11 @@ if __name__ == '__main__':
     parser.add_argument("train", help="training nodes with category")
     parser.add_argument("val", help="validation nodes with category")
     parser.add_argument("test", help="test nodes")
-    parser.add_argument("model", default="GNN", help="MLP or GNN")
-    parser.add_argument("num_epochs", default=300, type=int, help="number of epochs")
-    parser.add_argument("batch_size", default=256, type=int, help="samples in a batch")
-    parser.add_argument("learning_rate", default=0.01, type=float, help="learning rate")
-    parser.add_argument("dropout_rate", default=0.5, type=float, help="dropout_rate")
+    parser.add_argument("--model", default="GNN", help="MLP or GNN")
+    parser.add_argument("--num_epochs", default=300, type=int, help="number of epochs")
+    parser.add_argument("--batch_size", default=128, type=int, help="samples in a batch")
+    parser.add_argument("--learning_rate", default=0.01, type=float, help="learning rate")
+    parser.add_argument("--dropout_rate", default=0.2, type=float, help="dropout_rate")
 
     args = parser.parse_args()
 
