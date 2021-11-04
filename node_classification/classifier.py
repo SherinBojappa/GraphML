@@ -209,25 +209,25 @@ class GNNNodeClassifier(tf.keras.Model):
         # Preprocess the node_features to produce node representations.
 
         x = self.preprocess(self.node_features)
-        print(x.shape)
+        #print(x.shape)
         # Apply the first graph conv layer.
         x1 = self.conv1((x, self.edges, self.edge_weights))
         # Skip connection.
         x = x1 + x
-        print(x.shape)
+        #print(x.shape)
         # Apply the second graph conv layer.
         x2 = self.conv2((x, self.edges, self.edge_weights))
         # Skip connection.
         x = x2 + x
-        print(x.shape)
+        #print(x.shape)
         # Postprocess node embedding.
         x = self.postprocess(x)
-        print(x.shape)
+        #print(x.shape)
         # Fetch node embeddings for the input node_indices.
         #node_embeddings = tf.squeeze(tf.gather(x, input_node_indices))
         node_embeddings = tf.gather(x, input_node_indices)
-        print(input_node_indices.shape)
-        print(node_embeddings.shape)
+        #print(input_node_indices.shape)
+        #print(node_embeddings.shape)
         # Compute logits
         return self.compute_logits(node_embeddings)
 
@@ -446,8 +446,17 @@ def main(args):
                                  np.array(training_nodes), y_train,
                                  np.array(val_nodes), y_val)
 
-        #_, test_accuracy = gnn_model.evaluate(x=x_test, y=y_test, verbose=0)
-        #print(f"Test accuracy: {round(test_accuracy * 100, 2)}%")
+        logits = gnn_model.predict(tf.convert_to_tensor(test_nodes))
+        probabilities = keras.activations.softmax(tf.convert_to_tensor(logits)).numpy().squeeze()
+        preds = np.argmax(probabilities, axis=1)
+        print(preds[0])
+
+        output_file = open("predictions.txt", "w")
+        for iter, node in enumerate(test_nodes):
+            output_file.write(str(node) + ' ' + str(preds[iter])+"\n")
+
+
+
 
 
 
