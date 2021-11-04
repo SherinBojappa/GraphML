@@ -25,6 +25,13 @@ def extract_graph_features(G, node_to_vec):
 
 def run_experiment(model, x_train, y_train, x_val, y_val, class_weight):
     # Compile the model.
+
+    def scheduler(epoch, lr):
+        if epoch < 10:
+            return lr
+        else:
+            return lr * tf.math.exp(-0.1)
+
     model.compile(
         optimizer=keras.optimizers.Adam(args.learning_rate),
         #optimizer=keras.optimizers.SGD(args.learning_rate),
@@ -35,6 +42,7 @@ def run_experiment(model, x_train, y_train, x_val, y_val, class_weight):
     early_stopping = keras.callbacks.EarlyStopping(
         monitor="val_acc", patience=50, restore_best_weights=True
     )
+    callback = tf.keras.callbacks.LearningRateScheduler(scheduler)
 
     # Fit the model.
     history = model.fit(
@@ -45,7 +53,7 @@ def run_experiment(model, x_train, y_train, x_val, y_val, class_weight):
         batch_size=args.batch_size,
         validation_data=(x_val, y_val),
         #validation_split=0.3,
-        callbacks=[early_stopping],
+        callbacks=[callback, early_stopping],
     )
     return history
 
@@ -349,6 +357,13 @@ def main(args):
 
     x_train = train_feature_vectors
     y_train = train_data["class_label"].to_numpy()
+
+    from imblearn.over_sampling import RandomOverSampler
+
+    oversample = RandomOverSampler()
+    # fit and apply the transform
+    training_nodes, y_train = oversample.fit_resample(np.array(training_nodes).reshape(-1,1), y_train)
+
     (unique, counts) = np.unique(y_train, return_counts=True)
     """
     
