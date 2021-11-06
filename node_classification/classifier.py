@@ -165,6 +165,7 @@ class GraphConvLayer(layers.Layer):
         # Prepare the messages of the neighbours.
         neighbour_messages = self.prepare(neighbour_repesentations,
                                           edge_weights)
+        neighbour_messages = neighbour_repesentations
         # Aggregate the neighbour messages.
         aggregated_messages = self.aggregate(node_indices, neighbour_messages)
         # Update the node embedding with the neighbour messages.
@@ -297,11 +298,15 @@ def main(args):
         # Train model (set min_count = 1, if you want the model to work with the provided example data set)
 
         #model = Doc2Vec(docs, vector_size=100, min_count=1)
-        model = Doc2Vec(corpus_file=args.titles, vector_size=100, min_count=1)
+        model = Doc2Vec(corpus_file=args.titles, vector_size=1024, min_count=1)
+        model.build_vocab(corpus_file=args.titles)
+        model.train(corpus_file=args.titles, total_examples=model.corpus_count,
+                    total_words=model.corpus_total_words, epochs=model.epochs)
+
 
         # Get the vectors
-        print(model.docvecs[0])
-        print(model.docvecs[1])
+        #print(model.docvecs[0])
+        #print(model.docvecs[1])
 
     # ignore graph data and use data only from title to get the baseline
     # accuracy
@@ -345,7 +350,8 @@ def main(args):
         for word in line[1].split():
             node_feature_vector[title_unique.index(word)] = 1
         if (args.doc2vec == True):
-            node_to_vec[int(line[0])] = model.docvecs[int(line[0])]
+            #node_to_vec[int(line[0])] = model.docvecs[int(line[0])]
+            node_to_vec[int(line[0])] = model.infer_vector(line[1].split())
         else:
             node_to_vec[int(line[0])] = node_feature_vector
 
@@ -367,14 +373,14 @@ def main(args):
         node_vectors_test = [node_to_vec[node] for node in test_nodes]
 
 
-    train_feature_vectors = np.array(node_vectors_train)
-    val_feature_vectors = np.array(node_vectors_val)
-    test_feature_vectors = np.array(node_vectors_test)
+    #train_feature_vectors = np.array(node_vectors_train)
+    #val_feature_vectors = np.array(node_vectors_val)
+    #test_feature_vectors = np.array(node_vectors_test)
 
     feature_dim = len(node_to_vec[0])
     num_classes = len(class_labels["class_label_id"].to_list())
 
-    x_train = train_feature_vectors
+    #x_train = train_feature_vectors
     y_train = train_data["class_label"].to_numpy()
 
     from imblearn.over_sampling import RandomOverSampler
@@ -416,10 +422,10 @@ def main(args):
         else:
             class_weight[idx] = np.max(weights)+1.0
 
-    x_val = val_feature_vectors
+    #x_val = val_feature_vectors
     y_val = val_data["class_label"].to_numpy()
 
-    x_test = test_feature_vectors
+    #x_test = test_feature_vectors
 
     if args.model == "MLP":
         hidden_units = 32
