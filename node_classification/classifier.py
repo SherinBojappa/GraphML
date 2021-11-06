@@ -9,6 +9,8 @@ from tensorflow.keras.optimizers import Adam
 import matplotlib.pyplot as plt
 import scipy
 import numpy as np
+from gensim.models.doc2vec import Doc2Vec
+from collections import namedtuple
 
 
 def extract_graph_features(G, node_to_vec):
@@ -40,7 +42,7 @@ def run_experiment(model, x_train, y_train, x_val, y_val, class_weight):
     )
     # Create an early stopping callback.
     early_stopping = keras.callbacks.EarlyStopping(
-        monitor="val_acc", patience=50, restore_best_weights=True
+        monitor="val_acc", patience=1000, restore_best_weights=True
     )
     callback = tf.keras.callbacks.LearningRateScheduler(scheduler)
 
@@ -72,7 +74,9 @@ class GraphConvLayer(layers.Layer):
             hidden_units,
             dropout_rate=0.2,
             aggregation_type="mean",
+            #aggregation_type="sum",
             combination_type="concat",
+            #combination_type="add",
             normalize=False,
             *args,
             **kwargs,
@@ -232,33 +236,29 @@ class GNNNodeClassifier(tf.keras.Model):
         # Postprocess node embedding.
         x = self.postprocess(x)
 
-        print("before gather")
-        print(x.shape)
+        #print("before gather")
+        #print(x.shape)
         # Fetch node embeddings for the input node_indices.
         dd = tf.gather(x, input_node_indices)
-        print("before squeeze")
-        print(dd.shape)
+        #print("before squeeze")
+        #print(dd.shape)
         # node_embeddings = tf.squeeze(dd)
         node_embeddings = tf.reshape(dd, [-1, self.hidden_units[-1]])
-        print("after squeeze")
-        print(node_embeddings.shape)
+        #print("after squeeze")
+        #print(node_embeddings.shape)
         # Compute logits
         logits = self.compute_logits(node_embeddings)
-        print("logits shape:")
-        print(logits.shape)
+        #print("logits shape:")
+        #print(logits.shape)
         return logits
 
-
-def extract_features():
-    print("binary features for each node")
 
 def main(args):
     # read the nodes
     G = nx.read_edgelist(args.network_file, nodetype=int)
     print(nx.info(G))
-    #TODO remap the nodes to ones starting from 0
-    # the nodes are already in sorted order 0 - something
-    print(sorted(G.nodes()))
+    # the nodes are already from 0
+    #print(sorted(G.nodes()))
 
     # convert the network file into a pandas dataframe
     hyperlinks = pd.read_csv(args.network_file, sep=' ',
@@ -289,6 +289,19 @@ def main(args):
     #wiki_graph = nx.from_pandas_edgelist(hyperlinks.sample(n=5000))
     #nx.draw_spring(wiki_graph)
     #plt.show()
+    if(args.doc2vec == True):
+        print("doc2vec is chosen")
+
+        node_to_vec = {}
+
+        # Train model (set min_count = 1, if you want the model to work with the provided example data set)
+
+        #model = Doc2Vec(docs, vector_size=100, min_count=1)
+        model = Doc2Vec(corpus_file=args.titles, vector_size=100, min_count=1)
+
+        # Get the vectors
+        print(model.docvecs[0])
+        print(model.docvecs[1])
 
     # ignore graph data and use data only from title to get the baseline
     # accuracy
@@ -330,27 +343,33 @@ def main(args):
         # form the vector for each node
         node_feature_vector = [0]*len(title_unique)
         for word in line[1].split():
-            #if word not in title_unique:
-            #    print(word)
-            #    exit()
             node_feature_vector[title_unique.index(word)] = 1
+        if (args.doc2vec == True):
+            node_to_vec[int(line[0])] = model.docvecs[int(line[0])]
+        else:
+            node_to_vec[int(line[0])] = node_feature_vector
 
-        node_to_vec[int(line[0])] = node_feature_vector
-
-    print("Done with extracting features for all nodes")
+    #print("Done with extracting features for all nodes")
 
     # concatenate features for train data
     training_nodes = train_data["node"].to_list()
-    node_vectors = [node_to_vec[node] for node in training_nodes]
-    train_feature_vectors = np.array(node_vectors)
-
     val_nodes = val_data["node"].to_list()
-    node_vectors = [node_to_vec[node] for node in val_nodes]
-    val_feature_vectors = np.array(node_vectors)
-
     test_nodes = test_data["node"].to_list()
-    node_vectors = [node_to_vec[node] for node in test_nodes]
-    test_feature_vectors = np.array(node_vectors)
+
+    if (args.doc2vec == True):
+        node_vectors_train = [model.docvecs[node] for node in training_nodes]
+        node_vectors_val = [model.docvecs[node] for node in val_nodes]
+        node_vectors_test = [model.docvecs[node] for node in test_nodes]
+
+    else:
+        node_vectors_train = [node_to_vec[node] for node in training_nodes]
+        node_vectors_val = [node_to_vec[node] for node in val_nodes]
+        node_vectors_test = [node_to_vec[node] for node in test_nodes]
+
+
+    train_feature_vectors = np.array(node_vectors_train)
+    val_feature_vectors = np.array(node_vectors_val)
+    test_feature_vectors = np.array(node_vectors_test)
 
     feature_dim = len(node_to_vec[0])
     num_classes = len(class_labels["class_label_id"].to_list())
@@ -364,7 +383,13 @@ def main(args):
     # fit and apply the transform
     training_nodes, y_train = oversample.fit_resample(np.array(training_nodes).reshape(-1,1), y_train)
 
+
+
+
+
+
     (unique, counts) = np.unique(y_train, return_counts=True)
+
     """
     
     class_weights = (1.0 / counts)
@@ -418,30 +443,6 @@ def main(args):
         x1 = keras.layers.Dropout(dropout_rate)(x)
         x = keras.layers.Add()([x, x1])
         logits = keras.layers.Dense(num_classes, name='logits')(x)
-
-        """
-        mlp = Sequential()
-        mlp.add(keras.layers.Dense(hidden_units, activation='gelu'))
-        mlp.add(keras.layers.BatchNormalization())
-        mlp.add(keras.layers.Dropout(dropout_rate))
-        mlp.add(keras.layers.Dense(hidden_units, activation='gelu'))
-        mlp.add(keras.layers.BatchNormalization())
-        mlp.add(keras.layers.Dropout(dropout_rate))
-        mlp.add(keras.layers.Dense(hidden_units, activation='gelu'))
-        mlp.add(keras.layers.BatchNormalization())
-        mlp.add(keras.layers.Dropout(dropout_rate))
-        mlp.add(keras.layers.Dense(hidden_units, activation='gelu'))
-        mlp.add(keras.layers.BatchNormalization())
-        mlp.add(keras.layers.Dropout(dropout_rate))
-        mlp.add(keras.layers.Dense(hidden_units, activation='gelu'))
-        mlp.add(keras.layers.BatchNormalization())
-        mlp.add(keras.layers.Dropout(dropout_rate))
-        mlp.add(keras.layers.Dense(hidden_units, activation='gelu'))
-        # softmax
-        mlp.add(keras.layers.Dense(num_classes, name='logits'))
-        
-        logits = mlp(input_features)
-        """
 
         model = keras.Model(input_features, logits)
 
@@ -510,11 +511,18 @@ def main(args):
         logits = gnn_model.predict(tf.convert_to_tensor(test_nodes))
         probabilities = keras.activations.softmax(tf.convert_to_tensor(logits)).numpy().squeeze()
         preds = np.argmax(probabilities, axis=1)
-        print(preds[0])
+        #print(preds[0])
 
         output_file = open("predictions.txt", "w")
         for iter, node in enumerate(test_nodes):
             output_file.write(str(node) + ' ' + str(preds[iter])+"\n")
+
+
+        #TODO comment out
+        output_file = open("predictions_readable.txt", "w")
+        for iter, node in enumerate(test_nodes):
+            output_file.write(str(node_to_title_train[str(node)]) + ' ' + str(class_labels["category"].loc[preds[iter]])+"\n")
+
 
 
 if __name__ == '__main__':
@@ -525,11 +533,12 @@ if __name__ == '__main__':
     parser.add_argument("train", help="training nodes with category")
     parser.add_argument("val", help="validation nodes with category")
     parser.add_argument("test", help="test nodes")
-    parser.add_argument("--model", default="GNN", help="MLP or GNN")
-    parser.add_argument("--num_epochs", default=300, type=int, help="number of epochs")
-    parser.add_argument("--batch_size", default=128, type=int, help="samples in a batch")
-    parser.add_argument("--learning_rate", default=0.01, type=float, help="learning rate")
-    parser.add_argument("--dropout_rate", default=0.2, type=float, help="dropout_rate")
+    parser.add_argument("model", default="GNN", help="MLP or GNN")
+    parser.add_argument("num_epochs", default=300, type=int, help="number of epochs")
+    parser.add_argument("batch_size", default=128, type=int, help="samples in a batch")
+    parser.add_argument("learning_rate", default=0.01, type=float, help="learning rate")
+    parser.add_argument("dropout_rate", default=0.2, type=float, help="dropout_rate")
+    parser.add_argument("doc2vec", default=True, type=bool, help="whether to convert titles to distributed vectors")
 
     args = parser.parse_args()
 
