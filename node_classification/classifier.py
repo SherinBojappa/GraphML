@@ -263,10 +263,10 @@ def extract_features():
 def main(args):
     # read the nodes
     G = nx.read_edgelist(args.network_file, nodetype=int)
-    print(nx.info(G))
+    #print(nx.info(G))
     # TODO remap the nodes to ones starting from 0
     # the nodes are already in sorted order 0 - something
-    print(sorted(G.nodes()))
+    #print(sorted(G.nodes()))
 
     # convert the network file into a pandas dataframe
     hyperlinks = pd.read_csv(args.network_file, sep=' ',
@@ -330,20 +330,18 @@ def main(args):
     # presence or absence of each word in the current nodes title
     #print("Unique titles {}".format(len(title_unique)))
 
+    # node_to_vec is a dictionary with {node: feature}
     node_to_vec = {}
     for line in Lines:
         line = line.replace('\n', '')
         line = line.split(' ', 1)
         # print(line)
         # form the vector for each node
-        node_feature_vector = [0] * len(title_unique)
-        for word in line[1].split():
-            # if word not in title_unique:
-            #    print(word)
-            #    exit()
-            node_feature_vector[title_unique.index(word)] = 1
-
-        node_to_vec[int(line[0])] = node_feature_vector
+        if (args.word_presence):
+            node_feature_vector = [0] * len(title_unique)
+            for word in line[1].split():
+                node_feature_vector[title_unique.index(word)] = 1
+            node_to_vec[int(line[0])] = node_feature_vector
 
     #print("Done with extracting features for all nodes")
 
@@ -536,7 +534,7 @@ if __name__ == '__main__':
     parser.add_argument("val", help="validation nodes with category")
     parser.add_argument("test", help="test nodes")
     parser.add_argument("--model", default="GNN", help="MLP or GNN")
-    parser.add_argument("--num_epochs", default=300, type=int,
+    parser.add_argument("--num_epochs", default=30, type=int,
                         help="number of epochs")
     parser.add_argument("--batch_size", default=128, type=int,
                         help="samples in a batch")
@@ -544,6 +542,10 @@ if __name__ == '__main__':
                         help="learning rate")
     parser.add_argument("--dropout_rate", default=0.2, type=float,
                         help="dropout_rate")
+    parser.add_argument("--word_presence", default=True, type=bool,
+                        help="word presence used as feature vector")
+    parser.add_argument("--word2vec", default=False, type=bool,
+                        help="word presence used as feature vector")
 
     args = parser.parse_args()
 
