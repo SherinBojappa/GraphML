@@ -380,7 +380,7 @@ def main(args):
         words = [word for word in words if not word in stop_words]
 
         # word2vec model
-        model = gensim.downloader.load('word2vec-google-news-300')
+        word2vec_model = gensim.downloader.load('word2vec-google-news-300')
         #model = gensim.downloader.load('glove-wiki-gigaword-200')
 
         # Check dimension of word vectors
@@ -393,23 +393,23 @@ def main(args):
             line = line.split(' ', 1)
 
             # append average word2vec vector
-            doc = [word for word in line[1].split() if word in model.key_to_index]
+            doc = [word for word in line[1].split() if word in word2vec_model.key_to_index]
             if(len(doc) > 1):
                 #node_feature_vector = np.hstack([np.mean(model[doc], axis=0), clustering_coeff_dict[int(line[0])],
                 #                                degree_centrality_dict[int(line[0])]])
                 #node_feature_vector = np.append(np.mean(model[doc], axis=0), degree_centrality_dict[int(line[0])])
-                node_feature_vector = np.mean(model[doc], axis=0)
+                node_feature_vector = np.mean(word2vec_model[doc], axis=0)
 
             elif(len(doc) == 1):
                 #node_feature_vector = np.hstack([model[doc], clustering_coeff_dict[int(line[0])],
                 #                                degree_centrality_dict[int(line[0])]])
                 #node_feature_vector = np.append(model[doc], degree_centrality_dict[int(line[0])])
-                node_feature_vector = model[doc]
+                node_feature_vector = word2vec_model[doc]
             else:
                 #node_feature_vector = np.hstack([np.zeros((model.vector_size,), dtype=np.float32), clustering_coeff_dict[int(line[0])],
                 #                                degree_centrality_dict[int(line[0])]])
                 #node_feature_vector = np.append(np.zeros((model.vector_size,), dtype=np.float32), degree_centrality_dict[int(line[0])])
-                node_feature_vector = np.zeros((model.vector_size,))
+                node_feature_vector = np.zeros((word2vec_model.vector_size,))
             node_to_vec[int(line[0])] = node_feature_vector
 
     #print("Done with extracting features for all nodes")
@@ -566,7 +566,10 @@ def main(args):
                                  np.array(training_nodes), y_train,
                                  np.array(val_nodes), y_val, class_weight)
 
-        logits = gnn_model.predict(tf.convert_to_tensor(test_nodes))
+        best_model = keras.models.load_model('best_model')
+
+        #logits = best_model.predict(tf.convert_to_tensor(test_nodes))
+        logits = best_model.predict(test_nodes)
         probabilities = keras.activations.softmax(
             tf.convert_to_tensor(logits)).numpy().squeeze()
         preds = np.argmax(probabilities, axis=1)
@@ -576,9 +579,9 @@ def main(args):
         for iter, node in enumerate(test_nodes):
             output_file.write(str(node) + ' ' + str(preds[iter]) + "\n")
 
-        #output_file = open("predictions_readable.txt", "w")
-        #for iter, node in enumerate(test_nodes):
-        #    output_file.write(str(titles_list[node]) + ' ' + str(class_labels["category"][preds[iter]]) + "\n")
+        output_file = open("predictions_readable.txt", "w")
+        for iter, node in enumerate(test_nodes):
+            output_file.write(str(titles_list[node]) + ' ' + str(class_labels["category"][preds[iter]]) + "\n")
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -589,7 +592,7 @@ if __name__ == '__main__':
     parser.add_argument("val", help="validation nodes with category")
     parser.add_argument("test", help="test nodes")
     parser.add_argument("--model", default="GNN", help="MLP or GNN")
-    parser.add_argument("--num_epochs", default=300, type=int,
+    parser.add_argument("--num_epochs", default=100, type=int,
                         help="number of epochs")
     parser.add_argument("--batch_size", default=128, type=int,
                         help="samples in a batch")
