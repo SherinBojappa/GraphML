@@ -4,20 +4,54 @@ Readme
 Setup:
 =======
 
-Install argparse, networkx, pandas, tensorflow, keras, matplotlib, scipy, numpy (latest version '1.21.4'), gensim
-and imbalanced-learn.
+Install argparse, networkx, pandas, tensorflow, keras, matplotlib, scipy,
+numpy (latest version '1.21.4'), gensim, nltk, nltk.download('punkt'),
+nltk.download('stopwords'), warnings, and imbalanced-learn.
+
+import argparse
+import networkx as nx
+import pandas as pd
+import tensorflow as tf
+from tensorflow import keras
+from tensorflow.keras import layers
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.optimizers import Adam
+from nltk.corpus import stopwords
+from nltk.tokenize import word_tokenize
+import matplotlib.pyplot as plt
+import scipy
+import numpy as np
+import gensim
+import nltk
+nltk.download('punkt')
+nltk.download('stopwords')
+import gensim.downloader
+
+def warn(*args, **kwargs):
+    pass
+import warnings
+warnings.warn = warn
 
 Running:
 =========
 Run the following command
 python classifier.py "network.txt" "categories.txt" "titles.txt" "train.txt" "val.txt" "test.txt"
 
-The file predictions.txt will have data in the form node, category
+The file predictions.txt will have data in the form node, category.
 
 
 Approach:
 =========
 The following steps were followed:
+
+Word embeddings
+===============
+For the pre-trained word embedding we tried:
+1. word2vec-google-news-300 which is trained on 100B tokens from google news and uses a pre-trained word2vec model.
+2. glove-wiki-gigaword-200 which is trained on  6B words from wikipedia and more related to our problem.
+3. For out of vocab words we just use 0s.
+4. Once word embeddings are got, all the word embeddings in the tile are averaged and used as title embedding.
+6. We found word2vec embeddings performs better than glove embeddings
 
 1. The data from the train, val, and test files were extracted to be used later as pandas data frames.
 2. The word presence binary vector was created for the entire network by looking up the title of each node in the network file.

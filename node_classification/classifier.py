@@ -17,6 +17,11 @@ nltk.download('punkt')
 nltk.download('stopwords')
 import gensim.downloader
 
+def warn(*args, **kwargs):
+    pass
+import warnings
+warnings.warn = warn
+
 
 def extract_graph_features(G, node_to_vec):
     # (2, numedges) - (source, target)
@@ -271,18 +276,12 @@ class GNNNodeClassifier(tf.keras.Model):
         #print(logits.shape)
         return logits
 
-
-def extract_features():
-    print("binary features for each node")
-
-
 def main(args):
     # read the nodes
     G = nx.read_edgelist(args.network_file, nodetype=int)
     clustering_coeff_dict = nx.clustering(G)
     degree_centrality_dict = nx.degree_centrality(G)
     #print(nx.info(G))
-    # TODO remap the nodes to ones starting from 0
     # the nodes are already in sorted order 0 - something
     #print(sorted(G.nodes()))
 
@@ -330,8 +329,6 @@ def main(args):
             line = line.replace('\n', '')
             line = line.split(' ', 1)
             node_to_title_train[line[0]] = line[1]
-
-        #print("Done processing dict")
 
         title_unique = []
         repeated_words = []
@@ -385,38 +382,30 @@ def main(args):
         # word2vec model
         model = gensim.downloader.load('word2vec-google-news-300')
         #model = gensim.downloader.load('glove-wiki-gigaword-200')
-        #model = gensim.models.KeyedVectors.load_word2vec_format(
-        #    'word2vec-google-news-300', binary=True)
 
         # Check dimension of word vectors
-        print(model.vector_size)
+        #print(model.vector_size)
 
         # for all nodes in titles we will now average the word vectors
-        #node_to_vec = dict([(word, model[word]) for word in words if word in model.vocab])
         node_to_vec = {}
         for line in Lines:
             line = line.replace('\n', '')
             line = line.split(' ', 1)
 
-            #node_feature_vector = [0] * len(word_list)
-            # append average word2vec vector and the clustering coefficient.
+            # append average word2vec vector
             doc = [word for word in line[1].split() if word in model.key_to_index]
             if(len(doc) > 1):
-                print("doc length greater 1")
                 #node_feature_vector = np.hstack([np.mean(model[doc], axis=0), clustering_coeff_dict[int(line[0])],
                 #                                degree_centrality_dict[int(line[0])]])
                 #node_feature_vector = np.append(np.mean(model[doc], axis=0), degree_centrality_dict[int(line[0])])
                 node_feature_vector = np.mean(model[doc], axis=0)
 
             elif(len(doc) == 1):
-                print("doc of len 1")
                 #node_feature_vector = np.hstack([model[doc], clustering_coeff_dict[int(line[0])],
                 #                                degree_centrality_dict[int(line[0])]])
                 #node_feature_vector = np.append(model[doc], degree_centrality_dict[int(line[0])])
                 node_feature_vector = model[doc]
             else:
-                print("doc is of length 0")
-                print(line[1])
                 #node_feature_vector = np.hstack([np.zeros((model.vector_size,), dtype=np.float32), clustering_coeff_dict[int(line[0])],
                 #                                degree_centrality_dict[int(line[0])]])
                 #node_feature_vector = np.append(np.zeros((model.vector_size,), dtype=np.float32), degree_centrality_dict[int(line[0])])
@@ -506,30 +495,6 @@ def main(args):
         x = keras.layers.Add()([x, x1])
         logits = keras.layers.Dense(num_classes, name='logits')(x)
 
-        """
-        mlp = Sequential()
-        mlp.add(keras.layers.Dense(hidden_units, activation='gelu'))
-        mlp.add(keras.layers.BatchNormalization())
-        mlp.add(keras.layers.Dropout(dropout_rate))
-        mlp.add(keras.layers.Dense(hidden_units, activation='gelu'))
-        mlp.add(keras.layers.BatchNormalization())
-        mlp.add(keras.layers.Dropout(dropout_rate))
-        mlp.add(keras.layers.Dense(hidden_units, activation='gelu'))
-        mlp.add(keras.layers.BatchNormalization())
-        mlp.add(keras.layers.Dropout(dropout_rate))
-        mlp.add(keras.layers.Dense(hidden_units, activation='gelu'))
-        mlp.add(keras.layers.BatchNormalization())
-        mlp.add(keras.layers.Dropout(dropout_rate))
-        mlp.add(keras.layers.Dense(hidden_units, activation='gelu'))
-        mlp.add(keras.layers.BatchNormalization())
-        mlp.add(keras.layers.Dropout(dropout_rate))
-        mlp.add(keras.layers.Dense(hidden_units, activation='gelu'))
-        # softmax
-        mlp.add(keras.layers.Dense(num_classes, name='logits'))
-
-        logits = mlp(input_features)
-        """
-
         model = keras.Model(input_features, logits)
 
         model.summary()
@@ -579,11 +544,6 @@ def main(args):
         for iter, node in enumerate(test_nodes):
             output_file.write(str(node) + ' ' + str(preds[iter]) + "\n")
 
-        # logits = baseline_model.predict(new_instances)
-        # probabilities = keras.activations.softmax(
-        #    tf.convert_to_tensor(logits)).numpy()
-        # display_class_probabilities(probabilities)
-
     if (args.model == "GNN"):
 
         hidden_units = [32, 32]
@@ -616,11 +576,9 @@ def main(args):
         for iter, node in enumerate(test_nodes):
             output_file.write(str(node) + ' ' + str(preds[iter]) + "\n")
 
-        output_file = open("predictions_readable.txt", "w")
-        for iter, node in enumerate(test_nodes):
-            output_file.write(str(titles_list[node]) + ' ' + str(class_labels["category"][preds[iter]]) + "\n")
-
-
+        #output_file = open("predictions_readable.txt", "w")
+        #for iter, node in enumerate(test_nodes):
+        #    output_file.write(str(titles_list[node]) + ' ' + str(class_labels["category"][preds[iter]]) + "\n")
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -630,20 +588,20 @@ if __name__ == '__main__':
     parser.add_argument("train", help="training nodes with category")
     parser.add_argument("val", help="validation nodes with category")
     parser.add_argument("test", help="test nodes")
-    parser.add_argument("model", default="GNN", help="MLP or GNN")
-    parser.add_argument("num_epochs", default=20, type=int,
+    parser.add_argument("--model", default="GNN", help="MLP or GNN")
+    parser.add_argument("--num_epochs", default=100, type=int,
                         help="number of epochs")
-    parser.add_argument("batch_size", default=128, type=int,
+    parser.add_argument("--batch_size", default=128, type=int,
                         help="samples in a batch")
-    parser.add_argument("learning_rate", default=0.01, type=float,
+    parser.add_argument("--learning_rate", default=0.01, type=float,
                         help="learning rate")
-    parser.add_argument("dropout_rate", default=0.2, type=float,
+    parser.add_argument("--dropout_rate", default=0.2, type=float,
                         help="dropout_rate")
-    parser.add_argument("word_presence", default=False, type=bool,
+    parser.add_argument("--word_presence", default=False, type=bool,
                         help="word presence used as feature vector")
-    parser.add_argument("word2vec", default=True, type=bool,
+    parser.add_argument("--word2vec", default=True, type=bool,
                         help="word presence used as feature vector")
 
     args = parser.parse_args()
-    args.word_presence = False
+    #print(args)
     main(args)
