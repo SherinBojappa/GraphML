@@ -589,7 +589,7 @@ if __name__ == '__main__':
     parser.add_argument("val", help="validation nodes with category")
     parser.add_argument("test", help="test nodes")
     parser.add_argument("--model", default="GNN", help="MLP or GNN")
-    parser.add_argument("--num_epochs", default=100, type=int,
+    parser.add_argument("--num_epochs", default=300, type=int,
                         help="number of epochs")
     parser.add_argument("--batch_size", default=128, type=int,
                         help="samples in a batch")

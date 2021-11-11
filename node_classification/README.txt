@@ -60,7 +60,7 @@ to get the final node features.
 8. These logits are converted into probabilities by passing it through a softmax layer,
 the class with the highest probability value is then picked as the prediction for that particular node.
 12. Training is done using the nodes listed in train.txt, validation is done using the nodes in val.txt.
-13. We checkpoint and save the best model based on validation accuracy and load the best model for predictions.
+13. The best model based on validation accuracy is saved under best_model and this is loaded for predictions.
 13. For testing we predict the labels on the nodes listed in test.txt and write the predictions in a file predictions.txt
 which is of the form ni, ci -> ni = node; ci = category.
 14. The train.txt contains nodes from 25 classes; examples from node 3 are missing.
@@ -68,5 +68,5 @@ which is of the form ni, ci -> ni = node; ci = category.
 and also tried penalizing the dominant class manually but both did not give good performance.
 16. To solve the problem of class imbalance we oversample the least represented classes using imbalanced-learn oversampler,
 each batch now has balanced data accross classifiers.
-17. By following the above steps we consistently get validation accuracy of around 62%.
+17. By following the above steps we consistently get validation accuracy of around 60%.
 
