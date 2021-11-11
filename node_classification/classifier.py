@@ -6,9 +6,16 @@ from tensorflow import keras
 from tensorflow.keras import layers
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.optimizers import Adam
+from nltk.corpus import stopwords
+from nltk.tokenize import word_tokenize
 import matplotlib.pyplot as plt
 import scipy
 import numpy as np
+import gensim
+import nltk
+nltk.download('punkt')
+nltk.download('stopwords')
+import gensim.downloader
 
 
 def extract_graph_features(G, node_to_vec):
@@ -17,7 +24,7 @@ def extract_graph_features(G, node_to_vec):
     # Create an edge weights array of ones.
     edge_weights = tf.ones(shape=edges.shape[1])
     # Create a node features array of shape [num_nodes, num_features].
-    node_features = tf.cast(np.array(list(node_to_vec.values())),
+    node_features = tf.cast(np.vstack(list(node_to_vec.values())),
                             dtype=tf.dtypes.float32)
     # Create graph info tuple with node_features, edges, and edge_weights.
     graph_info = (node_features, edges, edge_weights)
@@ -42,7 +49,7 @@ def run_experiment(model, x_train, y_train, x_val, y_val, class_weight):
     )
     # Create an early stopping callback.
     early_stopping = keras.callbacks.EarlyStopping(
-        monitor="val_acc", patience=50, restore_best_weights=True
+        monitor="val_acc", patience=300, restore_best_weights=True
     )
     callback = tf.keras.callbacks.LearningRateScheduler(scheduler)
 
@@ -344,6 +351,55 @@ def main(args):
                 node_feature_vector[title_unique.index(word)] = 1
             node_to_vec[int(line[0])] = node_feature_vector
 
+    elif (args.word2vec):
+        with open(args.titles) as f:
+            Lines = f.readlines()
+
+        titles_list = []
+        for line in Lines:
+            line = line.replace('\n', '')
+            line = line.split(' ', 1)
+            titles_list.append(line[1])
+
+        all_titles = ' '.join(titles_list)
+
+        title_tokens = word_tokenize(all_titles)
+
+        words = [word.lower() for word in title_tokens if word.isalpha()]
+
+        stop_words = set(stopwords.words('english'))
+
+        words = [word for word in words if not word in stop_words]
+
+        # word2vec model
+        model = gensim.downloader.load('word2vec-google-news-300')
+        #model = gensim.models.KeyedVectors.load_word2vec_format(
+        #    'word2vec-google-news-300', binary=True)
+
+        # Check dimension of word vectors
+        print(model.vector_size)
+
+        # for all nodes in titles we will now average the word vectors
+        #node_to_vec = dict([(word, model[word]) for word in words if word in model.vocab])
+        node_to_vec = {}
+        for line in Lines:
+            line = line.replace('\n', '')
+            line = line.split(' ', 1)
+
+            #node_feature_vector = [0] * len(word_list)
+            doc = [word for word in line[1].split() if word in model.key_to_index]
+            if(len(doc) > 1):
+                print("doc length greater 1")
+                node_feature_vector = np.mean(model[doc], axis=0)
+            elif(len(doc) == 1):
+                print("doc of len 1")
+                node_feature_vector = model[doc]
+            else:
+                print("doc is of length 0")
+                print(line[1])
+                node_feature_vector = np.zeros((model.vector_size,), dtype=np.float32)
+            node_to_vec[int(line[0])] = node_feature_vector
+
     #print("Done with extracting features for all nodes")
 
     # concatenate features for train data
@@ -525,6 +581,11 @@ def main(args):
         for iter, node in enumerate(test_nodes):
             output_file.write(str(node) + ' ' + str(preds[iter]) + "\n")
 
+        output_file = open("predictions_readable.txt", "w")
+        for iter, node in enumerate(test_nodes):
+            output_file.write(str(titles_list[node]) + ' ' + str(class_labels["category"][preds[iter]]) + "\n")
+
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -535,7 +596,7 @@ if __name__ == '__main__':
     parser.add_argument("val", help="validation nodes with category")
     parser.add_argument("test", help="test nodes")
     parser.add_argument("model", default="GNN", help="MLP or GNN")
-    parser.add_argument("num_epochs", default=30, type=int,
+    parser.add_argument("num_epochs", default=300, type=int,
                         help="number of epochs")
     parser.add_argument("batch_size", default=128, type=int,
                         help="samples in a batch")
@@ -543,11 +604,11 @@ if __name__ == '__main__':
                         help="learning rate")
     parser.add_argument("dropout_rate", default=0.2, type=float,
                         help="dropout_rate")
-    parser.add_argument("word_presence", default=True, type=bool,
+    parser.add_argument("word_presence", default=False, type=bool,
                         help="word presence used as feature vector")
-    parser.add_argument("word2vec", default=False, type=bool,
+    parser.add_argument("word2vec", default=True, type=bool,
                         help="word presence used as feature vector")
 
     args = parser.parse_args()
-
+    args.word_presence = False
     main(args)
