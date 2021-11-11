@@ -53,6 +53,15 @@ def run_experiment(model, x_train, y_train, x_val, y_val, class_weight):
     )
     callback = tf.keras.callbacks.LearningRateScheduler(scheduler)
 
+    checkpoint_filepath = 'best_model'
+    model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
+        filepath=checkpoint_filepath,
+        monitor="val_acc",
+        mode="max",
+        verbose=1,
+        save_best_only=True
+    )
+
     # Fit the model.
     history = model.fit(
         x=x_train,
@@ -62,7 +71,7 @@ def run_experiment(model, x_train, y_train, x_val, y_val, class_weight):
         batch_size=args.batch_size,
         validation_data=(x_val, y_val),
         # validation_split=0.3,
-        callbacks=[callback, early_stopping],
+        callbacks=[callback, model_checkpoint_callback],
     )
     return history
 
@@ -270,6 +279,8 @@ def extract_features():
 def main(args):
     # read the nodes
     G = nx.read_edgelist(args.network_file, nodetype=int)
+    clustering_coeff_dict = nx.clustering(G)
+    degree_centrality_dict = nx.degree_centrality(G)
     #print(nx.info(G))
     # TODO remap the nodes to ones starting from 0
     # the nodes are already in sorted order 0 - something
@@ -373,6 +384,7 @@ def main(args):
 
         # word2vec model
         model = gensim.downloader.load('word2vec-google-news-300')
+        #model = gensim.downloader.load('glove-wiki-gigaword-200')
         #model = gensim.models.KeyedVectors.load_word2vec_format(
         #    'word2vec-google-news-300', binary=True)
 
@@ -387,17 +399,28 @@ def main(args):
             line = line.split(' ', 1)
 
             #node_feature_vector = [0] * len(word_list)
+            # append average word2vec vector and the clustering coefficient.
             doc = [word for word in line[1].split() if word in model.key_to_index]
             if(len(doc) > 1):
                 print("doc length greater 1")
+                #node_feature_vector = np.hstack([np.mean(model[doc], axis=0), clustering_coeff_dict[int(line[0])],
+                #                                degree_centrality_dict[int(line[0])]])
+                #node_feature_vector = np.append(np.mean(model[doc], axis=0), degree_centrality_dict[int(line[0])])
                 node_feature_vector = np.mean(model[doc], axis=0)
+
             elif(len(doc) == 1):
                 print("doc of len 1")
+                #node_feature_vector = np.hstack([model[doc], clustering_coeff_dict[int(line[0])],
+                #                                degree_centrality_dict[int(line[0])]])
+                #node_feature_vector = np.append(model[doc], degree_centrality_dict[int(line[0])])
                 node_feature_vector = model[doc]
             else:
                 print("doc is of length 0")
                 print(line[1])
-                node_feature_vector = np.zeros((model.vector_size,), dtype=np.float32)
+                #node_feature_vector = np.hstack([np.zeros((model.vector_size,), dtype=np.float32), clustering_coeff_dict[int(line[0])],
+                #                                degree_centrality_dict[int(line[0])]])
+                #node_feature_vector = np.append(np.zeros((model.vector_size,), dtype=np.float32), degree_centrality_dict[int(line[0])])
+                node_feature_vector = np.zeros((model.vector_size,))
             node_to_vec[int(line[0])] = node_feature_vector
 
     #print("Done with extracting features for all nodes")
@@ -522,6 +545,15 @@ def main(args):
             monitor="val_acc", patience=100, restore_best_weights=True
         )
 
+        checkpoint_filepath = 'best_model'
+        model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
+            filepath=checkpoint_filepath,
+            monitor="val_accuracy",
+            mode="max",
+            verbose=1,
+            save_best_only=True
+        )
+
         # Fit the model.
         history = model.fit(
             x=x_train,
@@ -530,8 +562,11 @@ def main(args):
             batch_size=batch_size,
             validation_data=(x_val, y_val),
             # validation_split=0.2,
-            callbacks=[early_stopping],
+            callbacks=[model_checkpoint_callback]#early_stopping],
         )
+
+        # load the best model
+        model = keras.models.load_model(checkpoint_filepath)
 
         # logits = model.predict(tf.convert_to_tensor(test_nodes))
         logits = model.predict(x_test)
@@ -596,7 +631,7 @@ if __name__ == '__main__':
     parser.add_argument("val", help="validation nodes with category")
     parser.add_argument("test", help="test nodes")
     parser.add_argument("model", default="GNN", help="MLP or GNN")
-    parser.add_argument("num_epochs", default=300, type=int,
+    parser.add_argument("num_epochs", default=20, type=int,
                         help="number of epochs")
     parser.add_argument("batch_size", default=128, type=int,
                         help="samples in a batch")
