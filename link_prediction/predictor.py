@@ -31,9 +31,13 @@ def main(args):
     citation_test = pd.read_csv(test_path, sep=',',
                              names=["source", "target"])
 
-    print(citation_train_val.head())
-    print("test data")
-    print(citation_test.head())
+    #print(citation_train_val.head())
+    #print("test data")
+    #print(citation_test.head())
+
+    features_path = os.path.join(os.getcwd(), "data", "node-feat.txt")
+    node_features = pd.read_csv(features_path, sep='\t', names=["node", "features"])
+    print(node_features.head())
 
 
 if __name__ == "__main__":
