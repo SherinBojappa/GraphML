@@ -36,8 +36,11 @@ def main(args):
     #print(citation_test.head())
 
     features_path = os.path.join(os.getcwd(), "data", "node-feat.txt")
-    node_features = pd.read_csv(features_path, sep='\t', names=["node", "features"])
-    print(node_features.head())
+    node_features_df = pd.read_csv(features_path, sep='\t', names=["node", "features"])
+    print(node_features_df.head())
+
+    node_features_df['features'] = node_features_df['features'].apply(lambda a: np.fromstring(a, dtype=float, sep=','))
+    print("node features converted into float values")
 
 
 if __name__ == "__main__":
