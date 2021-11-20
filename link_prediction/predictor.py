@@ -67,14 +67,14 @@ def create_baseline_model(num_features, hidden_units, num_classes, dropout_rate=
     # Create the model.
     return keras.Model(inputs=inputs, outputs=logits, name="baseline")
 
-def create_train_val_dataset(G, node_features_df, citation_train_val):
+def create_train_val_dataset(num_features, G, node_features_df, citation_train_val):
     print("creating train and test dataset")
 
     # positive samples
-    x_train_pos = np.zeros(len(citation_train_val["source"]))
+    x_train_pos = np.zeros([len(citation_train_val["source"]), num_features])
     y_train_pos = np.zeros(len(citation_train_val["source"]))
     for ind in citation_train_val.index:
-        print(citation_train_val["source"][ind], citation_train_val["target"][ind])
+        #print(citation_train_val["source"][ind], citation_train_val["target"][ind])
         src = citation_train_val["source"][ind]
         tgt = citation_train_val["target"][ind]
         feat = np.hstack([node_features_df['features'][src], node_features_df['features'][tgt]])
@@ -82,13 +82,14 @@ def create_train_val_dataset(G, node_features_df, citation_train_val):
         np.append(y_train_pos, 1)
 
     # negative samples
-    x_train_neg = np.zeros(len(citation_train_val["source"]))
+    x_train_neg = np.zeros([len(citation_train_val["source"]), num_features])
     y_train_neg = np.zeros(len(citation_train_val["source"]))
 
+    max_node_id = len(node_features_df["node"]) - 1
     for ind in range(len(citation_train_val["source"])):
         while(1):
-            src = random.randint(0, len(node_features_df["node"]))
-            tgt = random.randint(0, len(node_features_df["node"]))
+            src = random.randint(0, max_node_id)
+            tgt = random.randint(0, max_node_id)
 
             # check if this src and target exists
             if(G.has_edge(src, tgt)):
@@ -138,11 +139,11 @@ def main(args):
 
     # create data to be fed into the MLP
     #x_train, y_train, x_test, y_test = create_train_test_dataset(node_features_df, citation_train_val)
-    x_train, y_train, x_val, y_val = create_train_val_dataset(G, node_features_df, citation_train_val)
+    num_features = len(node_features_df["features"][0])
+    x_train, y_train, x_val, y_val = create_train_val_dataset(num_features, G, node_features_df, citation_train_val)
 
     if(args.model == 'MLP'):
         print("MLP")
-        num_features = len(node_features_df["features"][0])
         baseline_model = create_baseline_model(num_features, hidden_units, num_classes,
                                                args.dropout_rate)
         baseline_model.summary()
