@@ -25,8 +25,8 @@ def run_experiment(args, model, x_train, y_train, x_val, y_val):
     # Compile the model.
     model.compile(
         optimizer=keras.optimizers.Adam(args.learning_rate),
-        loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
-        metrics=[keras.metrics.SparseCategoricalAccuracy(name="acc")],
+        loss=keras.losses.BinaryCrossentropy(from_logits=True),
+        metrics=[keras.metrics.BinaryAccuracy(name="acc")],
     )
     # Create an early stopping callback.
     early_stopping = keras.callbacks.EarlyStopping(
@@ -55,7 +55,7 @@ def create_ffn(hidden_units, dropout_rate, name=None):
     return keras.Sequential(fnn_layers, name=name)
 
 def create_baseline_model(num_features, hidden_units, num_classes, dropout_rate=0.2):
-    inputs = layers.Input(shape=(num_features,), name="input_features")
+    inputs = layers.Input(shape=(num_features*2,), name="input_features")
     x = create_ffn(hidden_units, dropout_rate, name=f"ffn_block1")(inputs)
     for block_idx in range(4):
         # Create an FFN block.
@@ -71,18 +71,18 @@ def create_train_val_dataset(num_features, G, node_features_df, citation_train_v
     print("creating train and test dataset")
 
     # positive samples
-    x_train_pos = np.zeros([len(citation_train_val["source"]), num_features])
+    x_train_pos = np.zeros([len(citation_train_val["source"]), num_features*2])
     y_train_pos = np.zeros(len(citation_train_val["source"]))
     for ind in citation_train_val.index:
         #print(citation_train_val["source"][ind], citation_train_val["target"][ind])
         src = citation_train_val["source"][ind]
         tgt = citation_train_val["target"][ind]
         feat = np.hstack([node_features_df['features'][src], node_features_df['features'][tgt]])
-        np.append(x_train_pos, feat)
-        np.append(y_train_pos, 1)
+        x_train_pos[ind] = feat
+        y_train_pos[ind] = 1
 
     # negative samples
-    x_train_neg = np.zeros([len(citation_train_val["source"]), num_features])
+    x_train_neg = np.zeros([len(citation_train_val["source"]), num_features*2])
     y_train_neg = np.zeros(len(citation_train_val["source"]))
 
     max_node_id = len(node_features_df["node"]) - 1
@@ -98,11 +98,11 @@ def create_train_val_dataset(num_features, G, node_features_df, citation_train_v
                 break
 
         feat = np.hstack([node_features_df['features'][src], node_features_df['features'][tgt]])
-        np.append(x_train_neg, feat)
-        np.append(y_train_neg, 0)
+        x_train_neg[ind] = feat
+        y_train_neg[ind] = 0
 
     x = np.vstack([x_train_pos, x_train_neg])
-    y = np.vstack([[y_train_pos, y_train_neg]])
+    y = np.hstack([y_train_pos, y_train_neg])
 
 
     # shuffle the positive and negative samples
@@ -163,7 +163,7 @@ if __name__ == "__main__":
     parser.add_argument("--model", default='MLP', help="GNN or MLP")
     parser.add_argument("--learning_rate", default='0.01', type=float, help="GNN or MLP")
     parser.add_argument("--dropout_rate", default=0.5, type=float, help="dropout")
-    parser.add_argument("--num_epochs", default=2, type=int,
+    parser.add_argument("--num_epochs", default=50, type=int,
                         help="dropout")
     parser.add_argument("--batch_size", default=128, type=int,
                         help="dropout")
