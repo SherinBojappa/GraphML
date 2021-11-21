@@ -356,6 +356,37 @@ def main(args):
     elif(args.model == 'GNN'):
         print("GNN")
 
+        train_val_nodes = []
+        for ind in range(len(citation_train_val["source"])):
+
+            citation_tuple = (citation_train_val["source"][ind], citation_train_val["target"][ind])
+            train_val_nodes.append(citation_tuple)
+
+        print("done getting the node indices")
+
+        hidden_units = [32, 32]
+
+        node_to_vec = {}
+
+        for ind in range(len(node_features_df)):
+            node_to_vec[node_features_df["node"][ind]] = node_features_df["features"][ind]
+
+        graph_info = extract_graph_features(G, node_to_vec)
+
+        gnn_model = GNNNodeClassifier(
+            graph_info=graph_info,
+            num_classes=num_classes,
+            hidden_units=hidden_units,
+            dropout_rate=args.dropout_rate,
+            name="gnn_model",
+        )
+
+        #history = run_experiment(gnn_model,
+        #                         np.array(training_nodes), y_train,
+        #                         np.array(val_nodes), y_val, class_weight)
+
+
+
 
 
 
