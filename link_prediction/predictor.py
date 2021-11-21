@@ -34,6 +34,29 @@ def extract_graph_features(G, node_to_vec):
 
     return graph_info
 
+def run_experiment_gnn(args, model, x_src_train, x_tgt_train, y_train, x_src_val, x_tgt_val, y_val):
+    # Compile the model.
+    model.compile(
+        optimizer=keras.optimizers.Adam(args.learning_rate),
+        loss=keras.losses.BinaryCrossentropy(from_logits=True),
+        metrics=[keras.metrics.BinaryAccuracy(name="acc")],
+    )
+    # Create an early stopping callback.
+    early_stopping = keras.callbacks.EarlyStopping(
+        monitor="val_acc", patience=50, restore_best_weights=True
+    )
+    # Fit the model.
+    history = model.fit(
+        x=[x_src_train, x_tgt_train],
+        y=y_train,
+        epochs=args.num_epochs,
+        batch_size=args.batch_size,
+        validation_data=([x_src_val, x_tgt_val], y_val),
+        callbacks=[early_stopping],
+    )
+
+    return history
+
 
 def run_experiment(args, model, x_train, y_train, x_val, y_val):
     # Compile the model.
@@ -224,7 +247,7 @@ class GNNNodeClassifier(tf.keras.Model):
         self.compute_logits = layers.Dense(units=num_classes, name="logits")
         self.hidden_units = hidden_units
 
-    def call(self, input_node_indices):
+    def call(self, input_node_indices_src, input_node_indices_tgt):
         # Preprocess the node_features to produce node representations.
         x = self.preprocess(self.node_features)
         # Apply the first graph conv layer.
@@ -241,10 +264,12 @@ class GNNNodeClassifier(tf.keras.Model):
         #print("before gather")
         #print(x.shape)
         # Fetch node embeddings for the input node_indices.
-        dd = tf.gather(x, input_node_indices)
+        dd_src = tf.gather(x, input_node_indices_src)
+        dd_tgt = tf.gather(x, input_node_indices_tgt)
         #print("before squeeze")
         #print(dd.shape)
         # node_embeddings = tf.squeeze(dd)
+        dd = tf.concat(dd_src, dd_tgt)
         node_embeddings = tf.reshape(dd, [-1, self.hidden_units[-1]])
         #print("after squeeze")
         #print(node_embeddings.shape)
@@ -309,6 +334,58 @@ def create_train_val_dataset(num_features, G, node_features_df, citation_train_v
     (x_train, x_val, y_train, y_val) = train_test_split(x, y, random_state = 2, test_size=0.2)
 
     return x_train, y_train, x_val, y_val
+
+def create_train_val_dataset_gnn(num_features, G, node_features_df, citation_train_val):
+    print("creating train and test dataset")
+
+    # positive samples
+    node_id_src_pos = np.zeros(len(citation_train_val["source"]))
+    node_id_tgt_pos = np.zeros(len(citation_train_val["target"]))
+    y_train_pos = np.zeros(len(citation_train_val["source"]))
+    for ind in citation_train_val.index:
+        #print(citation_train_val["source"][ind], citation_train_val["target"][ind])
+        src = citation_train_val["source"][ind]
+        tgt = citation_train_val["target"][ind]
+        #feat_src = node_features_df['features'][src]
+        #feat_tgt = node_features_df['features'][tgt]
+        #x_train_pos[ind] = feat
+        node_id_src_pos[ind] = src
+        node_id_tgt_pos[ind] = tgt
+        y_train_pos[ind] = 1
+
+    # negative samples
+    #x_train_neg = np.zeros([len(citation_train_val["source"]), num_features*2])
+    y_train_neg = np.zeros(len(citation_train_val["source"]))
+    node_id_src_neg = np.zeros(len(citation_train_val["source"]))
+    node_id_tgt_neg = np.zeros(len(citation_train_val["target"]))
+
+    max_node_id = len(node_features_df["node"]) - 1
+    for ind in range(len(citation_train_val["source"])):
+        while(1):
+            src = random.randint(0, max_node_id)
+            tgt = random.randint(0, max_node_id)
+
+            # check if this src and target exists
+            if(G.has_edge(src, tgt)):
+                continue
+            else:
+                break
+
+        #feat = np.hstack([node_features_df['features'][src], node_features_df['features'][tgt]])
+        #x_train_neg[ind] = feat
+        node_id_src_neg[ind] = src
+        node_id_tgt_neg[ind] = tgt
+        y_train_neg[ind] = 0
+
+    x_src = np.vstack([node_id_src_pos, node_id_src_neg])
+    x_tgt = np.vstack([node_id_tgt_pos, node_id_tgt_neg])
+    y = np.hstack([y_train_pos, y_train_neg])
+
+
+    # shuffle the positive and negative samples
+    (x_src_train, x_src_val, x_tgt_train, x_tgt_val, y_train, y_val) = train_test_split(x_src, x_tgt, y, random_state = 2, test_size=0.2)
+
+    return x_src_train, x_src_val, x_tgt_train, x_tgt_val, y_train, y_val
 
 def main(args):
     train_path = os.path.join(os.getcwd(), "data", "train.txt")
@@ -381,9 +458,12 @@ def main(args):
             name="gnn_model",
         )
 
-        #history = run_experiment(gnn_model,
-        #                         np.array(training_nodes), y_train,
-        #                         np.array(val_nodes), y_val, class_weight)
+        x_src_train, x_src_val, x_tgt_train, x_tgt_val, y_train, y_val = \
+            create_train_val_dataset_gnn(num_features, G, node_features_df, citation_train_val)
+
+        history = run_experiment_gnn(gnn_model,
+                                 np.array(x_src_train), np.array(x_tgt_train), y_train,
+                                 np.array(x_src_val), np.array(x_tgt_val), y_val)
 
 
 
