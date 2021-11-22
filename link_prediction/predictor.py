@@ -423,7 +423,8 @@ def create_train_val_dataset_gnn(num_features, G, node_features_df, citation_tra
     return x_src_train, x_src_val, x_tgt_train, x_tgt_val, y_train, y_val
 
 def main(args):
-    train_path = os.path.join(os.getcwd(), "data", "train.txt")
+    #train_path = os.path.join(os.getcwd(), "data", "train.txt")
+    train_path = os.path.join(os.getcwd(), args.directory, "train.txt")
     G = nx.read_edgelist(train_path, delimiter=',', nodetype=int)
     #print(nx.info(G))
 
@@ -431,11 +432,13 @@ def main(args):
     citation_train_val = pd.read_csv(train_path, sep=',',
                              names=["source", "target"])
 
-    test_path = os.path.join(os.getcwd(), "data", "test.txt")
+    #test_path = os.path.join(os.getcwd(), "data", "test.txt")
+    test_path = os.path.join(os.getcwd(), args.directory, "test.txt")
     citation_test = pd.read_csv(test_path, sep=',',
                              names=["source", "target"])
 
-    features_path = os.path.join(os.getcwd(), "data", "node-feat.txt")
+    #features_path = os.path.join(os.getcwd(), "data", "node-feat.txt")
+    features_path = os.path.join(os.getcwd(), args.directory, "node-feat.txt")
     node_features_df = pd.read_csv(features_path, sep='\t', names=["node", "features"])
 
     # convert features into a floating value
@@ -515,10 +518,11 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model", default='MLP', help="GNN or MLP")
-    parser.add_argument("--learning_rate", default='0.01', type=float, help="GNN or MLP")
-    parser.add_argument("--dropout_rate", default=0.5, type=float, help="dropout")
-    parser.add_argument("--num_epochs", default=2, type=int,
+    parser.add_argument("directory", help="directory containing train.txt, test.txt, and node-feat.txt")
+    parser.add_argument("--model", default='GNN', help="GNN or MLP")
+    parser.add_argument("--learning_rate", default=0.01, type=float, help="learning rate")
+    parser.add_argument("--dropout_rate", default=0.2, type=float, help="dropout rate")
+    parser.add_argument("--num_epochs", default=300, type=int,
                         help="dropout")
     parser.add_argument("--batch_size", default=128, type=int,
                         help="dropout")
