@@ -35,6 +35,14 @@ def extract_graph_features(G, node_to_vec):
     return graph_info
 
 def run_experiment_gnn(args, model, x_src_train, x_tgt_train, y_train, x_src_val, x_tgt_val, y_val):
+
+    def scheduler(epoch, lr):
+        if epoch < 10:
+            return lr
+        else:
+            return lr * 0.9
+
+
     # Compile the model.
     model.compile(
         optimizer=keras.optimizers.Adam(args.learning_rate),
@@ -45,6 +53,18 @@ def run_experiment_gnn(args, model, x_src_train, x_tgt_train, y_train, x_src_val
     early_stopping = keras.callbacks.EarlyStopping(
         monitor="val_acc", patience=50, restore_best_weights=True
     )
+
+    callback = tf.keras.callbacks.LearningRateScheduler(scheduler)
+
+    checkpoint_filepath = 'best_model'
+    model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
+        filepath=checkpoint_filepath,
+        monitor="val_acc",
+        mode="max",
+        verbose=1,
+        save_best_only=True
+    )
+
     # Fit the model.
     history = model.fit(
         x=[x_src_train, x_tgt_train],
@@ -52,7 +72,7 @@ def run_experiment_gnn(args, model, x_src_train, x_tgt_train, y_train, x_src_val
         epochs=args.num_epochs,
         batch_size=args.batch_size,
         validation_data=([x_src_val, x_tgt_val], y_val),
-        callbacks=[early_stopping],
+        callbacks=[callback, model_checkpoint_callback],
     )
 
     return history
@@ -155,10 +175,10 @@ class GraphConvLayer(layers.Layer):
             # Create a sequence of two elements for the GRU layer.
             h = tf.stack([node_repesentations, aggregated_messages], axis=1)
         elif self.combination_type == "concat":
-            print("Node representations")
-            print(node_repesentations.shape)
-            print("Neighbor messages")
-            print(aggregated_messages.shape)
+            #print("Node representations")
+            #print(node_repesentations.shape)
+            #print("Neighbor messages")
+            #print(aggregated_messages.shape)
             # Concatenate the node_repesentations and aggregated_messages.
             h = tf.concat([node_repesentations, aggregated_messages], axis=1)
         elif self.combination_type == "add":
@@ -192,13 +212,13 @@ class GraphConvLayer(layers.Layer):
         neighbour_messages = self.prepare(neighbour_repesentations,
                                           edge_weights)
 
-        print("Neighbour messages")
-        print(neighbour_messages.shape)
+        #print("Neighbour messages")
+        #print(neighbour_messages.shape)
 
         # Aggregate the neighbour messages.
         aggregated_messages = self.aggregate(node_indices, neighbour_messages)
-        print("aggregated messages")
-        print(aggregated_messages.shape)
+        #print("aggregated messages")
+        #print(aggregated_messages.shape)
         # Update the node embedding with the neighbour messages.
         return self.update(node_repesentations, aggregated_messages)
 
@@ -210,7 +230,11 @@ class GNNNodeClassifier(tf.keras.Model):
             num_classes,
             hidden_units,
             aggregation_type="sum",
-            combination_type="concat",
+            #aggregation_type="mean",
+            #aggregation_type="max",
+            #combination_type="concat",
+            combination_type="add",
+            #combination_type="gru",
             dropout_rate=0.2,
             normalize=True,
             *args,
@@ -278,16 +302,16 @@ class GNNNodeClassifier(tf.keras.Model):
         # Fetch node embeddings for the input node_indices.
         dd_src = tf.gather(x, input_node_indices_src)
         dd_tgt = tf.gather(x, input_node_indices_tgt)
-        print("before squeeze")
+        #print("before squeeze")
         #print(dd.shape)
         # node_embeddings = tf.squeeze(dd)
-        print(dd_src.dtype)
-        print(dd_tgt.dtype)
+        #print(dd_src.dtype)
+        #print(dd_tgt.dtype)
         dd = tf.concat([dd_src, dd_tgt], axis=1)
-        print(dd.shape)
+        #print(dd.shape)
         node_embeddings = tf.reshape(dd, [-1, 2*self.hidden_units[-1]])
-        print("after squeeze")
-        print(node_embeddings.shape)
+        #print("after squeeze")
+        #print(node_embeddings.shape)
         # Compute logits
         logits = self.compute_logits(node_embeddings)
         #print("logits shape:")
@@ -421,7 +445,7 @@ def main(args):
 
     features_path = os.path.join(os.getcwd(), "data", "node-feat.txt")
     node_features_df = pd.read_csv(features_path, sep='\t', names=["node", "features"])
-    print(node_features_df.head())
+    #print(node_features_df.head())
 
     # convert features into a floating value
     node_features_df['features'] = node_features_df['features'].apply(lambda a: np.fromstring(a, dtype=float, sep=','))
@@ -481,6 +505,31 @@ def main(args):
                                  np.array(x_src_val), np.array(x_tgt_val), y_val)
 
 
+        best_model = keras.models.load_model('best_model')
+
+        node_id_src = np.zeros(len(citation_test["source"]),
+                                   dtype=np.int32)
+        node_id_tgt = np.zeros(len(citation_test["target"]),
+                                   dtype=np.int32)
+        for ind in citation_test.index:
+            # print(citation_train_val["source"][ind], citation_train_val["target"][ind])
+            src = citation_train_val["source"][ind]
+            tgt = citation_train_val["target"][ind]
+            node_id_src[ind] = src
+            node_id_tgt[ind] = tgt
+
+        #logits = best_model.predict(tf.convert_to_tensor(test_nodes))
+        logits = best_model.predict([node_id_src, node_id_tgt])
+        probabilities = keras.activations.sigmoid(
+            tf.convert_to_tensor(logits)).numpy().squeeze()
+        #preds = np.argmax(probabilities, axis=1)
+        #print(preds[0])
+
+        output_file = open("predictions.txt", "w")
+        for idx in range(len(citation_test["source"])):
+            output_file.write(str(citation_test["source"][idx]) + ',' + str(citation_test["target"][idx]) + ',' +
+                              str(probabilities[idx]) + "\n")
+
 
 
 
@@ -490,7 +539,7 @@ if __name__ == "__main__":
     parser.add_argument("--model", default='MLP', help="GNN or MLP")
     parser.add_argument("--learning_rate", default='0.01', type=float, help="GNN or MLP")
     parser.add_argument("--dropout_rate", default=0.5, type=float, help="dropout")
-    parser.add_argument("--num_epochs", default=50, type=int,
+    parser.add_argument("--num_epochs", default=2, type=int,
                         help="dropout")
     parser.add_argument("--batch_size", default=128, type=int,
                         help="dropout")
