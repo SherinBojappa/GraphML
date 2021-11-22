@@ -223,7 +223,7 @@ class GraphConvLayer(layers.Layer):
         return self.update(node_repesentations, aggregated_messages)
 
 
-class GNNNodeClassifier(tf.keras.Model):
+class GNNLinkPredictor(tf.keras.Model):
     def __init__(
             self,
             graph_info,
@@ -240,7 +240,7 @@ class GNNNodeClassifier(tf.keras.Model):
             *args,
             **kwargs,
     ):
-        super(GNNNodeClassifier, self).__init__(*args, **kwargs)
+        super(GNNLinkPredictor, self).__init__(*args, **kwargs)
 
         # Unpack graph_info to three elements: node_features, edges, and edge_weight.
         node_features, edges, edge_weights = graph_info
@@ -334,18 +334,19 @@ def create_baseline_model(num_features, hidden_units, num_classes, dropout_rate=
 def create_train_val_dataset(num_features, G, node_features_df, citation_train_val):
     print("creating train and test dataset")
 
-    # positive samples
+    # positive samples, concatenate the features for the node pair
     x_train_pos = np.zeros([len(citation_train_val["source"]), num_features*2])
     y_train_pos = np.zeros(len(citation_train_val["source"]))
     for ind in citation_train_val.index:
-        #print(citation_train_val["source"][ind], citation_train_val["target"][ind])
         src = citation_train_val["source"][ind]
         tgt = citation_train_val["target"][ind]
         feat = np.hstack([node_features_df['features'][src], node_features_df['features'][tgt]])
         x_train_pos[ind] = feat
         y_train_pos[ind] = 1
 
-    # negative samples
+    # negative samples, pick 2 random nodes such that there is no link between
+    # them; equal number of positive and negative samples to create a balanced
+    # dataset
     x_train_neg = np.zeros([len(citation_train_val["source"]), num_features*2])
     y_train_neg = np.zeros(len(citation_train_val["source"]))
 
@@ -365,35 +366,31 @@ def create_train_val_dataset(num_features, G, node_features_df, citation_train_v
         x_train_neg[ind] = feat
         y_train_neg[ind] = 0
 
+    # create training and validation dataset with both positive and negative
+    # samples
     x = np.vstack([x_train_pos, x_train_neg])
     y = np.hstack([y_train_pos, y_train_neg])
 
-
-    # shuffle the positive and negative samples
+    # shuffle the positive and negative samples and split into training and
+    # validation datasets
     (x_train, x_val, y_train, y_val) = train_test_split(x, y, random_state = 2, test_size=0.2)
 
     return x_train, y_train, x_val, y_val
 
 def create_train_val_dataset_gnn(num_features, G, node_features_df, citation_train_val):
-    print("creating train and test dataset")
 
     # positive samples
     node_id_src_pos = np.zeros(len(citation_train_val["source"]), dtype=np.int32)
     node_id_tgt_pos = np.zeros(len(citation_train_val["target"]), dtype=np.int32)
     y_train_pos = np.zeros(len(citation_train_val["source"]))
     for ind in citation_train_val.index:
-        #print(citation_train_val["source"][ind], citation_train_val["target"][ind])
         src = citation_train_val["source"][ind]
         tgt = citation_train_val["target"][ind]
-        #feat_src = node_features_df['features'][src]
-        #feat_tgt = node_features_df['features'][tgt]
-        #x_train_pos[ind] = feat
         node_id_src_pos[ind] = src
         node_id_tgt_pos[ind] = tgt
         y_train_pos[ind] = 1
 
-    # negative samples
-    #x_train_neg = np.zeros([len(citation_train_val["source"]), num_features*2])
+    # negative samples, pick any 2 nodes which do not have a link randomly
     y_train_neg = np.zeros(len(citation_train_val["source"]))
     node_id_src_neg = np.zeros(len(citation_train_val["source"]), dtype=np.int32)
     node_id_tgt_neg = np.zeros(len(citation_train_val["target"]), dtype=np.int32)
@@ -410,18 +407,17 @@ def create_train_val_dataset_gnn(num_features, G, node_features_df, citation_tra
             else:
                 break
 
-        #feat = np.hstack([node_features_df['features'][src], node_features_df['features'][tgt]])
-        #x_train_neg[ind] = feat
         node_id_src_neg[ind] = src
         node_id_tgt_neg[ind] = tgt
         y_train_neg[ind] = 0
 
+    # create a balanced training/validation dataset with equal number of positive
+    # and negative samples
     x_src = np.hstack([node_id_src_pos, node_id_src_neg])
     x_tgt = np.hstack([node_id_tgt_pos, node_id_tgt_neg])
     y = np.hstack([y_train_pos, y_train_neg])
 
-
-    # shuffle the positive and negative samples
+    # shuffle/split the positive and negative samples
     (x_src_train, x_src_val, x_tgt_train, x_tgt_val, y_train, y_val) = train_test_split(x_src, x_tgt, y, random_state = 2, test_size=0.2)
 
     return x_src_train, x_src_val, x_tgt_train, x_tgt_val, y_train, y_val
@@ -429,7 +425,7 @@ def create_train_val_dataset_gnn(num_features, G, node_features_df, citation_tra
 def main(args):
     train_path = os.path.join(os.getcwd(), "data", "train.txt")
     G = nx.read_edgelist(train_path, delimiter=',', nodetype=int)
-    print(nx.info(G))
+    #print(nx.info(G))
 
     # convert the network file into a pandas dataframe
     citation_train_val = pd.read_csv(train_path, sep=',',
@@ -439,13 +435,8 @@ def main(args):
     citation_test = pd.read_csv(test_path, sep=',',
                              names=["source", "target"])
 
-    #print(citation_train_val.head())
-    #print("test data")
-    #print(citation_test.head())
-
     features_path = os.path.join(os.getcwd(), "data", "node-feat.txt")
     node_features_df = pd.read_csv(features_path, sep='\t', names=["node", "features"])
-    #print(node_features_df.head())
 
     # convert features into a floating value
     node_features_df['features'] = node_features_df['features'].apply(lambda a: np.fromstring(a, dtype=float, sep=','))
@@ -453,32 +444,26 @@ def main(args):
     hidden_units = [32, 32]
     num_classes = 1
 
-    # create data to be fed into the MLP
-    #x_train, y_train, x_test, y_test = create_train_test_dataset(node_features_df, citation_train_val)
     num_features = len(node_features_df["features"][0])
-    x_train, y_train, x_val, y_val = create_train_val_dataset(num_features, G, node_features_df, citation_train_val)
 
     if(args.model == 'MLP'):
-        print("MLP")
+        x_train, y_train, x_val, y_val = create_train_val_dataset(num_features,
+                                                                  G,
+                                                                  node_features_df,
+                                                                  citation_train_val)
+
         baseline_model = create_baseline_model(num_features, hidden_units, num_classes,
                                                args.dropout_rate)
         baseline_model.summary()
         history = run_experiment(args, baseline_model, x_train, y_train, x_val, y_val)
 
-        #_, test_accuracy = baseline_model.evaluate(x=x_test, y=y_test,
-        #                                           verbose=0)
-        #print(f"Test accuracy: {round(test_accuracy * 100, 2)}%")
-
     elif(args.model == 'GNN'):
-        print("GNN")
 
         train_val_nodes = []
         for ind in range(len(citation_train_val["source"])):
 
             citation_tuple = (citation_train_val["source"][ind], citation_train_val["target"][ind])
             train_val_nodes.append(citation_tuple)
-
-        print("done getting the node indices")
 
         hidden_units = [32, 32]
 
@@ -489,7 +474,7 @@ def main(args):
 
         graph_info = extract_graph_features(G, node_to_vec)
 
-        gnn_model = GNNNodeClassifier(
+        gnn_model = GNNLinkPredictor(
             graph_info=graph_info,
             num_classes=num_classes,
             hidden_units=hidden_units,
@@ -507,31 +492,25 @@ def main(args):
 
         best_model = keras.models.load_model('best_model')
 
+        # prepare the node ids for testing
         node_id_src = np.zeros(len(citation_test["source"]),
                                    dtype=np.int32)
         node_id_tgt = np.zeros(len(citation_test["target"]),
                                    dtype=np.int32)
         for ind in citation_test.index:
-            # print(citation_train_val["source"][ind], citation_train_val["target"][ind])
-            src = citation_train_val["source"][ind]
-            tgt = citation_train_val["target"][ind]
+            src = citation_test["source"][ind]
+            tgt = citation_test["target"][ind]
             node_id_src[ind] = src
             node_id_tgt[ind] = tgt
 
-        #logits = best_model.predict(tf.convert_to_tensor(test_nodes))
         logits = best_model.predict([node_id_src, node_id_tgt])
         probabilities = keras.activations.sigmoid(
             tf.convert_to_tensor(logits)).numpy().squeeze()
-        #preds = np.argmax(probabilities, axis=1)
-        #print(preds[0])
 
         output_file = open("predictions.txt", "w")
         for idx in range(len(citation_test["source"])):
             output_file.write(str(citation_test["source"][idx]) + ',' + str(citation_test["target"][idx]) + ',' +
                               str(probabilities[idx]) + "\n")
-
-
-
 
 
 if __name__ == "__main__":
