@@ -129,7 +129,8 @@ class GraphConvLayer(layers.Layer):
     def aggregate(self, node_indices, neighbour_messages):
         # node_indices shape is [num_edges].
         # neighbour_messages shape: [num_edges, representation_dim].
-        num_nodes = tf.math.reduce_max(node_indices) + 1
+        #num_nodes = tf.math.reduce_max(node_indices) + 1
+        num_nodes = tf.math.reduce_max(node_indices) + 2
         if self.aggregation_type == "sum":
             aggregated_message = tf.math.unsorted_segment_sum(
                 neighbour_messages, node_indices, num_segments=num_nodes
@@ -154,6 +155,10 @@ class GraphConvLayer(layers.Layer):
             # Create a sequence of two elements for the GRU layer.
             h = tf.stack([node_repesentations, aggregated_messages], axis=1)
         elif self.combination_type == "concat":
+            print("Node representations")
+            print(node_repesentations.shape)
+            print("Neighbor messages")
+            print(aggregated_messages.shape)
             # Concatenate the node_repesentations and aggregated_messages.
             h = tf.concat([node_repesentations, aggregated_messages], axis=1)
         elif self.combination_type == "add":
@@ -186,8 +191,14 @@ class GraphConvLayer(layers.Layer):
         # Prepare the messages of the neighbours.
         neighbour_messages = self.prepare(neighbour_repesentations,
                                           edge_weights)
+
+        print("Neighbour messages")
+        print(neighbour_messages.shape)
+
         # Aggregate the neighbour messages.
         aggregated_messages = self.aggregate(node_indices, neighbour_messages)
+        print("aggregated messages")
+        print(aggregated_messages.shape)
         # Update the node embedding with the neighbour messages.
         return self.update(node_repesentations, aggregated_messages)
 
@@ -247,7 +258,8 @@ class GNNNodeClassifier(tf.keras.Model):
         self.compute_logits = layers.Dense(units=num_classes, name="logits")
         self.hidden_units = hidden_units
 
-    def call(self, input_node_indices_src, input_node_indices_tgt):
+    def call(self, inp):
+        input_node_indices_src, input_node_indices_tgt = inp
         # Preprocess the node_features to produce node representations.
         x = self.preprocess(self.node_features)
         # Apply the first graph conv layer.
@@ -266,13 +278,16 @@ class GNNNodeClassifier(tf.keras.Model):
         # Fetch node embeddings for the input node_indices.
         dd_src = tf.gather(x, input_node_indices_src)
         dd_tgt = tf.gather(x, input_node_indices_tgt)
-        #print("before squeeze")
+        print("before squeeze")
         #print(dd.shape)
         # node_embeddings = tf.squeeze(dd)
-        dd = tf.concat(dd_src, dd_tgt)
-        node_embeddings = tf.reshape(dd, [-1, self.hidden_units[-1]])
-        #print("after squeeze")
-        #print(node_embeddings.shape)
+        print(dd_src.dtype)
+        print(dd_tgt.dtype)
+        dd = tf.concat([dd_src, dd_tgt], axis=1)
+        print(dd.shape)
+        node_embeddings = tf.reshape(dd, [-1, 2*self.hidden_units[-1]])
+        print("after squeeze")
+        print(node_embeddings.shape)
         # Compute logits
         logits = self.compute_logits(node_embeddings)
         #print("logits shape:")
@@ -339,8 +354,8 @@ def create_train_val_dataset_gnn(num_features, G, node_features_df, citation_tra
     print("creating train and test dataset")
 
     # positive samples
-    node_id_src_pos = np.zeros(len(citation_train_val["source"]))
-    node_id_tgt_pos = np.zeros(len(citation_train_val["target"]))
+    node_id_src_pos = np.zeros(len(citation_train_val["source"]), dtype=np.int32)
+    node_id_tgt_pos = np.zeros(len(citation_train_val["target"]), dtype=np.int32)
     y_train_pos = np.zeros(len(citation_train_val["source"]))
     for ind in citation_train_val.index:
         #print(citation_train_val["source"][ind], citation_train_val["target"][ind])
@@ -356,8 +371,8 @@ def create_train_val_dataset_gnn(num_features, G, node_features_df, citation_tra
     # negative samples
     #x_train_neg = np.zeros([len(citation_train_val["source"]), num_features*2])
     y_train_neg = np.zeros(len(citation_train_val["source"]))
-    node_id_src_neg = np.zeros(len(citation_train_val["source"]))
-    node_id_tgt_neg = np.zeros(len(citation_train_val["target"]))
+    node_id_src_neg = np.zeros(len(citation_train_val["source"]), dtype=np.int32)
+    node_id_tgt_neg = np.zeros(len(citation_train_val["target"]), dtype=np.int32)
 
     max_node_id = len(node_features_df["node"]) - 1
     for ind in range(len(citation_train_val["source"])):
@@ -377,8 +392,8 @@ def create_train_val_dataset_gnn(num_features, G, node_features_df, citation_tra
         node_id_tgt_neg[ind] = tgt
         y_train_neg[ind] = 0
 
-    x_src = np.vstack([node_id_src_pos, node_id_src_neg])
-    x_tgt = np.vstack([node_id_tgt_pos, node_id_tgt_neg])
+    x_src = np.hstack([node_id_src_pos, node_id_src_neg])
+    x_tgt = np.hstack([node_id_tgt_pos, node_id_tgt_neg])
     y = np.hstack([y_train_pos, y_train_neg])
 
 
@@ -461,7 +476,7 @@ def main(args):
         x_src_train, x_src_val, x_tgt_train, x_tgt_val, y_train, y_val = \
             create_train_val_dataset_gnn(num_features, G, node_features_df, citation_train_val)
 
-        history = run_experiment_gnn(gnn_model,
+        history = run_experiment_gnn(args, gnn_model,
                                  np.array(x_src_train), np.array(x_tgt_train), y_train,
                                  np.array(x_src_val), np.array(x_tgt_val), y_val)
 
