@@ -307,9 +307,11 @@ class GNNLinkPredictor(tf.keras.Model):
         # node_embeddings = tf.squeeze(dd)
         #print(dd_src.dtype)
         #print(dd_tgt.dtype)
-        dd = tf.concat([dd_src, dd_tgt], axis=1)
+        #dd = tf.concat([dd_src, dd_tgt], axis=1)
+        dd = tf.math.multiply(dd_src, dd_tgt)
         #print(dd.shape)
-        node_embeddings = tf.reshape(dd, [-1, 2*self.hidden_units[-1]])
+        #node_embeddings = tf.reshape(dd, [-1, 2*self.hidden_units[-1]])
+        node_embeddings = tf.reshape(dd, [-1, self.hidden_units[-1]])
         #print("after squeeze")
         #print(node_embeddings.shape)
         # Compute logits
