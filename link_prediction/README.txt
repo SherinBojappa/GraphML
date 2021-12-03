@@ -51,8 +51,9 @@ GNN
 3. Graph neural network then uses these extracted edges to find neighbors of a node.
 4. The graph convolutional layers use mean aggregation for neighbours with concatenation
 of previous layer representations to get the final node features.
-5. The node representation for the target and source node is then concatenated and
-passed to a multi-class classifier using an MLP and logits are obtained.
+5. The node representation for the target and source node is then combined, it was observed
+that element wise multiplication of source and target embeddings provides better performance
+than concatenation of source and target embeddings; this is then passed to a classifier using an MLP and logits are obtained.
 6. These logits are converted into probabilities by passing it through a sigmoid layer
 and this is used as prediction of link between source and target nodes.
 7. The best model based on validation accuracy is saved under best_model and this is loaded for predictions.
@@ -60,5 +61,5 @@ and this is used as prediction of link between source and target nodes.
 in a file predictions.txt which is of the form ni,nj,pij -> ni = source node; nj = target node, and
 pij = probability of existance of a link between source and target nodes.
 9. We use learning rate scheduler to decrease learning rate after 10 epochs.
-10. By following the above steps we get an accuracy of around 70%.
+10. By following the above steps we get an accuracy of around 88%.
 
