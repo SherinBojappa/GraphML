@@ -4,4 +4,5 @@
 numpy, pandas, and argparse
 
 ## command to run
-python compute_metrics.py <net-sample.txt>
+1. compute_metrics.py - This can be used to compute graph metrics such as density, diameter, number of connected components
+                        "python compute_metrics.py <net-sample.txt>"
